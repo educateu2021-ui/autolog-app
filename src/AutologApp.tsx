@@ -1,29 +1,48 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  LayoutDashboard, 
-  Car, 
-  Fuel, 
-  Wrench, 
-  AlertTriangle, 
-  Settings, 
-  Plus, 
-  Save, 
-  Trash2, 
-  ChevronRight, 
-  ChevronDown, 
-  Droplet, 
-  Gauge, 
-  Calendar,
-  DollarSign,
-  FileText,
-  Activity,
-  Zap,
-  Thermometer,
-  Disc,
-  Info
+  LayoutDashboard, Car, Fuel, Wrench, AlertTriangle, Settings, 
+  Plus, Save, Trash2, ChevronRight, LogOut, Droplet, Gauge, 
+  DollarSign, FileText, Activity, Zap, Thermometer, Disc, Info, 
+  User, Smartphone, Mail, Lock, Shield, CreditCard, Users, 
+  TrendingUp, CheckCircle, XCircle, Search
 } from 'lucide-react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+// --- Utils ---
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+function generateId() {
+  return Math.random().toString(36).substring(2, 9);
+}
 
 // --- Types ---
+
+type UserRole = 'user' | 'admin';
+
+type UserAccount = {
+  id: string;
+  email: string;
+  mobile: string;
+  password: string; 
+  name: string;
+  isOnboarded: boolean;
+  role: UserRole;
+  isPro: boolean;
+  joinedDate: string;
+};
+
+type VehicleProfile = {
+  make: string;
+  model: string;
+  variant: string;
+  regNumber: string;
+  vin: string;
+  purchaseDate: string;
+  fuelType: string;
+};
 
 type TripLog = {
   id: string;
@@ -45,16 +64,6 @@ type ExpenseLog = {
   notes?: string;
 };
 
-type VehicleProfile = {
-  make: string;
-  model: string;
-  variant: string;
-  regNumber: string;
-  vin: string;
-  purchaseDate: string;
-  fuelType: string;
-};
-
 type MaintenanceTask = {
   id: string;
   label: string;
@@ -63,17 +72,14 @@ type MaintenanceTask = {
   status: 'pending' | 'ok' | 'issue';
 };
 
-// --- Mock Data / Defaults ---
-
-const defaultProfile: VehicleProfile = {
-  make: 'Toyota',
-  model: 'Fortuner',
-  variant: 'Legender 4x4',
-  regNumber: 'KA-01-MJ-2024',
-  vin: '',
-  purchaseDate: '2024-01-15',
-  fuelType: 'Diesel',
+type AdminConfig = {
+  razorpayKeyId: string;
+  razorpayKeySecret: string;
+  proPlanPrice: number;
+  currency: string;
 };
+
+// --- Defaults ---
 
 const defaultTasks: MaintenanceTask[] = [
   { id: 'd1', label: 'Tyre Pressure Check', frequency: 'Daily', lastChecked: null, status: 'pending' },
@@ -81,51 +87,47 @@ const defaultTasks: MaintenanceTask[] = [
   { id: 'd3', label: 'Warning Lights Check', frequency: 'Daily', lastChecked: null, status: 'pending' },
   { id: 'm1', label: 'Engine Oil Level', frequency: 'Monthly', lastChecked: null, status: 'pending' },
   { id: 'm2', label: 'Coolant Level', frequency: 'Monthly', lastChecked: null, status: 'pending' },
-  { id: 'm3', label: 'Brake Fluid Check', frequency: 'Monthly', lastChecked: null, status: 'pending' },
-  { id: 'm4', label: 'Wash Wiper Fluid', frequency: 'Monthly', lastChecked: null, status: 'pending' },
   { id: 'y1', label: 'Annual Full Service', frequency: 'Yearly', lastChecked: null, status: 'pending' },
-  { id: 'y2', label: 'Insurance Renewal', frequency: 'Yearly', lastChecked: null, status: 'pending' },
-  { id: 'y3', label: 'Tyre Rotation', frequency: 'Yearly', lastChecked: null, status: 'pending' },
 ];
 
-const warningLights = [
-  { id: 1, name: 'Check Engine', icon: <Activity className="text-yellow-500" />, severity: 'Medium', desc: 'Engine malfunction. Drive moderately to service.' },
-  { id: 2, name: 'Oil Pressure', icon: <Droplet className="text-red-500" />, severity: 'Critical', desc: 'Low oil pressure. Stop immediately.' },
-  { id: 3, name: 'Battery', icon: <Zap className="text-red-500" />, severity: 'Critical', desc: 'Charging system failure. Car may stop soon.' },
-  { id: 4, name: 'Temperature', icon: <Thermometer className="text-red-500" />, severity: 'Critical', desc: 'Engine overheating. Stop and let cool.' },
-  { id: 5, name: 'Brake/ABS', icon: <Disc className="text-yellow-500" />, severity: 'Medium', desc: 'Brake system issue. Drive with caution.' },
-  { id: 6, name: 'TPMS', icon: <Gauge className="text-yellow-500" />, severity: 'Low', desc: 'Low tyre pressure detected.' },
-];
+const defaultAdminConfig: AdminConfig = {
+  razorpayKeyId: '',
+  razorpayKeySecret: '',
+  proPlanPrice: 499,
+  currency: 'INR'
+};
 
 // --- Components ---
 
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <div className={`bg-slate-800 border border-slate-700 rounded-xl shadow-sm ${className}`}>
+  <div className={cn("bg-slate-900 border border-slate-800 rounded-xl shadow-sm", className)}>
     {children}
   </div>
 );
 
-const Button = ({ children, onClick, variant = 'primary', className = '' }: any) => {
-  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2";
+const Button = ({ children, onClick, variant = 'primary', className = '', type = 'button', disabled = false }: any) => {
+  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
   const variants = {
     primary: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/50",
-    secondary: "bg-slate-700 hover:bg-slate-600 text-slate-200",
+    secondary: "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700",
     danger: "bg-red-500/10 text-red-400 hover:bg-red-500/20",
-    outline: "border border-slate-600 text-slate-300 hover:bg-slate-800"
+    success: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/50",
+    outline: "border border-slate-600 text-slate-300 hover:bg-slate-800",
+    ghost: "text-slate-400 hover:text-white hover:bg-slate-800"
   };
   return (
-    <button onClick={onClick} className={`${baseStyle} ${variants[variant as keyof typeof variants]} ${className}`}>
+    <button type={type} onClick={onClick} disabled={disabled} className={cn(baseStyle, variants[variant as keyof typeof variants], className)}>
       {children}
     </button>
   );
 };
 
-const Input = ({ label, ...props }: any) => (
-  <div className="mb-4">
-    <label className="block text-slate-400 text-sm font-medium mb-1">{label}</label>
+const Input = ({ label, className, ...props }: any) => (
+  <div className={cn("mb-4", className)}>
+    {label && <label className="block text-slate-400 text-sm font-medium mb-1">{label}</label>}
     <input 
       {...props} 
-      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-slate-600"
+      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-slate-600 disabled:opacity-50"
     />
   </div>
 );
@@ -135,7 +137,7 @@ const Select = ({ label, options, ...props }: any) => (
     <label className="block text-slate-400 text-sm font-medium mb-1">{label}</label>
     <select 
       {...props} 
-      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
     >
       {options.map((opt: string) => (
         <option key={opt} value={opt}>{opt}</option>
@@ -144,70 +146,295 @@ const Select = ({ label, options, ...props }: any) => (
   </div>
 );
 
-// --- Main App ---
+// --- Auth & Onboarding Components ---
+
+const AuthScreen = ({ onLogin }: { onLogin: (user: UserAccount) => void }) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [formData, setFormData] = useState({ email: '', password: '', name: '', mobile: '' });
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    // Hardcoded Admin Check
+    if (formData.email === 'admin@autolog.com' && formData.password === 'admin123') {
+      const adminUser: UserAccount = {
+        id: 'admin_master',
+        email: 'admin@autolog.com',
+        mobile: '0000000000',
+        password: 'XXX',
+        name: 'Super Admin',
+        isOnboarded: true,
+        role: 'admin',
+        isPro: true,
+        joinedDate: new Date().toISOString()
+      };
+      onLogin(adminUser);
+      return;
+    }
+
+    const users = JSON.parse(localStorage.getItem('autolog_users') || '[]');
+
+    if (isLogin) {
+      const user = users.find((u: UserAccount) => u.email === formData.email && u.password === formData.password);
+      if (user) {
+        onLogin(user);
+      } else {
+        setError('Invalid email or password');
+      }
+    } else {
+      if (users.find((u: UserAccount) => u.email === formData.email)) {
+        setError('User already exists');
+        return;
+      }
+      const newUser: UserAccount = {
+        id: generateId(),
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        mobile: formData.mobile,
+        isOnboarded: false,
+        role: 'user',
+        isPro: false,
+        joinedDate: new Date().toISOString().split('T')[0]
+      };
+      localStorage.setItem('autolog_users', JSON.stringify([...users, newUser]));
+      onLogin(newUser);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md p-8 border-slate-800 bg-slate-900/50 backdrop-blur-xl relative overflow-hidden">
+        {/* Decorative background blobs */}
+        <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="text-center mb-8 relative z-10">
+          <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-blue-500/20 mb-4">
+            <Car className="text-white" size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-white">AUTOLOG</h1>
+          <p className="text-slate-400">Smart Vehicle Journal</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
+          {!isLogin && (
+            <>
+              <Input 
+                placeholder="Full Name" 
+                value={formData.name} 
+                onChange={(e:any) => setFormData({...formData, name: e.target.value})} 
+                required 
+              />
+              <Input 
+                placeholder="Mobile Number" 
+                type="tel"
+                value={formData.mobile} 
+                onChange={(e:any) => setFormData({...formData, mobile: e.target.value})} 
+                required 
+              />
+            </>
+          )}
+          <Input 
+            type="email" 
+            placeholder="Email Address" 
+            value={formData.email} 
+            onChange={(e:any) => setFormData({...formData, email: e.target.value})} 
+            required 
+          />
+          <Input 
+            type="password" 
+            placeholder="Password" 
+            value={formData.password} 
+            onChange={(e:any) => setFormData({...formData, password: e.target.value})} 
+            required 
+          />
+          
+          {error && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded border border-red-500/20">{error}</p>}
+          
+          <Button type="submit" className="w-full py-3">
+            {isLogin ? 'Sign In' : 'Create Account'}
+          </Button>
+        </form>
+
+        <div className="mt-6 text-center relative z-10">
+          <button 
+            onClick={() => setIsLogin(!isLogin)} 
+            className="text-slate-400 hover:text-white text-sm transition-colors"
+          >
+            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const OnboardingScreen = ({ user, onComplete }: { user: UserAccount, onComplete: (profile: VehicleProfile) => void }) => {
+  const [profile, setProfile] = useState<VehicleProfile>({
+    make: '', model: '', variant: '', regNumber: '', vin: '', purchaseDate: '', fuelType: 'Petrol'
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onComplete(profile);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <Card className="w-full max-w-2xl p-8 border-slate-800">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-white">Vehicle Setup</h2>
+          <p className="text-slate-400">Let's set up your vehicle profile to get started.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input label="Make (Brand)" placeholder="e.g. Toyota" value={profile.make} onChange={(e:any) => setProfile({...profile, make: e.target.value})} required />
+          <Input label="Model" placeholder="e.g. Fortuner" value={profile.model} onChange={(e:any) => setProfile({...profile, model: e.target.value})} required />
+          <Input label="Variant" placeholder="e.g. Legender 4x4" value={profile.variant} onChange={(e:any) => setProfile({...profile, variant: e.target.value})} required />
+          <Input label="Registration Number" placeholder="KA-01-MJ-2024" value={profile.regNumber} onChange={(e:any) => setProfile({...profile, regNumber: e.target.value})} required />
+          <Select label="Fuel Type" options={['Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG']} value={profile.fuelType} onChange={(e:any) => setProfile({...profile, fuelType: e.target.value})} />
+          <Input label="Purchase Date" type="date" value={profile.purchaseDate} onChange={(e:any) => setProfile({...profile, purchaseDate: e.target.value})} required />
+          
+          <div className="md:col-span-2 mt-4 pt-4 border-t border-slate-800 flex justify-end">
+            <Button type="submit" className="w-full md:w-auto">Complete Setup <ChevronRight size={18} /></Button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+};
+
+// --- Main App Logic ---
 
 export default function AutologApp() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   
-  // State
-  const [profile, setProfile] = useState<VehicleProfile>(defaultProfile);
+  // Data State
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [profile, setProfile] = useState<VehicleProfile | null>(null);
   const [trips, setTrips] = useState<TripLog[]>([]);
   const [expenses, setExpenses] = useState<ExpenseLog[]>([]);
   const [tasks, setTasks] = useState<MaintenanceTask[]>(defaultTasks);
+  const [adminConfig, setAdminConfig] = useState<AdminConfig>(defaultAdminConfig);
+  
+  // UI State
   const [showAddTrip, setShowAddTrip] = useState(false);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
 
-  // Load from local storage on mount
+  // Load User Session
   useEffect(() => {
-    const savedProfile = localStorage.getItem('autolog_profile');
-    const savedTrips = localStorage.getItem('autolog_trips');
-    const savedExpenses = localStorage.getItem('autolog_expenses');
-    const savedTasks = localStorage.getItem('autolog_tasks');
-
-    if (savedProfile) setProfile(JSON.parse(savedProfile));
-    if (savedTrips) setTrips(JSON.parse(savedTrips));
-    if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
-    if (savedTasks) setTasks(JSON.parse(savedTasks));
+    const savedUser = localStorage.getItem('autolog_current_user');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+    const savedConfig = localStorage.getItem('autolog_admin_config');
+    if (savedConfig) {
+      setAdminConfig(JSON.parse(savedConfig));
+    }
   }, []);
 
-  // Save to local storage on change
-  useEffect(() => { localStorage.setItem('autolog_profile', JSON.stringify(profile)); }, [profile]);
-  useEffect(() => { localStorage.setItem('autolog_trips', JSON.stringify(trips)); }, [trips]);
-  useEffect(() => { localStorage.setItem('autolog_expenses', JSON.stringify(expenses)); }, [expenses]);
-  useEffect(() => { localStorage.setItem('autolog_tasks', JSON.stringify(tasks)); }, [tasks]);
+  // Load User Data when currentUser changes
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'admin') {
+      const prefix = `autolog_${currentUser.id}`;
+      const savedProfile = localStorage.getItem(`${prefix}_profile`);
+      const savedTrips = localStorage.getItem(`${prefix}_trips`);
+      const savedExpenses = localStorage.getItem(`${prefix}_expenses`);
+      const savedTasks = localStorage.getItem(`${prefix}_tasks`);
 
-  // Derived Stats
-  const totalDistance = trips.reduce((acc, t) => acc + t.distance, 0);
-  const totalSpent = expenses.reduce((acc, e) => acc + e.amount, 0);
-  const fuelSpent = expenses.filter(e => e.category === 'Fuel').reduce((acc, e) => acc + e.amount, 0);
-  const serviceSpent = expenses.filter(e => e.category === 'Service').reduce((acc, e) => acc + e.amount, 0);
-  
-  const lastOdometer = trips.length > 0 
-    ? Math.max(...trips.map(t => t.endOdometer)) 
-    : 0;
+      if (savedProfile) setProfile(JSON.parse(savedProfile));
+      if (savedTrips) setTrips(JSON.parse(savedTrips));
+      if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
+      if (savedTasks) setTasks(JSON.parse(savedTasks));
+    } else if (currentUser?.role === 'admin') {
+        setActiveTab('admin-dashboard');
+    }
+  }, [currentUser]);
+
+  // Persist User Data
+  useEffect(() => {
+    if (currentUser && profile && currentUser.role !== 'admin') {
+      const prefix = `autolog_${currentUser.id}`;
+      localStorage.setItem(`${prefix}_profile`, JSON.stringify(profile));
+      localStorage.setItem(`${prefix}_trips`, JSON.stringify(trips));
+      localStorage.setItem(`${prefix}_expenses`, JSON.stringify(expenses));
+      localStorage.setItem(`${prefix}_tasks`, JSON.stringify(tasks));
+    }
+  }, [currentUser, profile, trips, expenses, tasks]);
+
+  const handleLogin = (user: UserAccount) => {
+    setCurrentUser(user);
+    localStorage.setItem('autolog_current_user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setProfile(null);
+    setTrips([]);
+    setExpenses([]);
+    localStorage.removeItem('autolog_current_user');
+  };
+
+  const handleOnboardingComplete = (vehicleProfile: VehicleProfile) => {
+    if (!currentUser) return;
+    
+    // Update user status
+    const updatedUser = { ...currentUser, isOnboarded: true };
+    const users = JSON.parse(localStorage.getItem('autolog_users') || '[]');
+    const updatedUsers = users.map((u: UserAccount) => u.id === currentUser.id ? updatedUser : u);
+    
+    localStorage.setItem('autolog_users', JSON.stringify(updatedUsers));
+    localStorage.setItem('autolog_current_user', JSON.stringify(updatedUser));
+    
+    setProfile(vehicleProfile);
+    setCurrentUser(updatedUser);
+  };
+
+  const handleUpgradeToPro = () => {
+      // Mock Payment Processing
+      setTimeout(() => {
+          if(!currentUser) return;
+          const updatedUser = { ...currentUser, isPro: true };
+          
+          // Update in local storage
+          const users = JSON.parse(localStorage.getItem('autolog_users') || '[]');
+          const updatedUsers = users.map((u: UserAccount) => u.id === currentUser.id ? updatedUser : u);
+          localStorage.setItem('autolog_users', JSON.stringify(updatedUsers));
+          
+          setCurrentUser(updatedUser);
+          localStorage.setItem('autolog_current_user', JSON.stringify(updatedUser));
+          setShowProModal(false);
+          alert('Welcome to Pro! Your payment was successful.');
+      }, 1500);
+  };
+
+  const saveAdminConfig = () => {
+      localStorage.setItem('autolog_admin_config', JSON.stringify(adminConfig));
+      alert('Settings Saved Successfully');
+  };
 
   // Forms State
+  const lastOdometer = trips.length > 0 ? Math.max(...trips.map(t => t.endOdometer)) : 0;
+  
   const [newTrip, setNewTrip] = useState<Partial<TripLog>>({ 
-    date: new Date().toISOString().split('T')[0], 
-    type: 'City',
-    startOdometer: lastOdometer
+    date: new Date().toISOString().split('T')[0], type: 'City', startOdometer: lastOdometer 
   });
-
+  
   const [newExpense, setNewExpense] = useState<Partial<ExpenseLog>>({ 
-    date: new Date().toISOString().split('T')[0], 
-    category: 'Fuel',
-    amount: 0
+    date: new Date().toISOString().split('T')[0], category: 'Fuel', amount: 0 
   });
 
-  // Handlers
   const handleAddTrip = () => {
     if (!newTrip.endOdometer || newTrip.endOdometer <= (newTrip.startOdometer || 0)) {
-      alert("End odometer must be greater than start.");
-      return;
+      alert("End odometer must be greater than start."); return;
     }
     const distance = (newTrip.endOdometer || 0) - (newTrip.startOdometer || 0);
     const trip: TripLog = {
-      id: Date.now().toString(),
+      id: generateId(),
       date: newTrip.date!,
       startOdometer: newTrip.startOdometer || 0,
       endOdometer: newTrip.endOdometer,
@@ -223,7 +450,7 @@ export default function AutologApp() {
   const handleAddExpense = () => {
     if (!newExpense.amount || newExpense.amount <= 0) return;
     const expense: ExpenseLog = {
-      id: Date.now().toString(),
+      id: generateId(),
       date: newExpense.date!,
       category: newExpense.category as any,
       amount: Number(newExpense.amount),
@@ -235,400 +462,265 @@ export default function AutologApp() {
     setNewExpense({ ...newExpense, amount: 0, vendor: '', notes: '' });
   };
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => 
-      t.id === id ? { 
-        ...t, 
-        lastChecked: t.lastChecked && t.status === 'ok' ? null : new Date().toISOString().split('T')[0],
-        status: t.status === 'ok' ? 'pending' : 'ok'
-      } : t
-    ));
+  // --- ADMIN Views ---
+  
+  const AdminDashboard = () => {
+      const allUsers: UserAccount[] = JSON.parse(localStorage.getItem('autolog_users') || '[]');
+      const [searchTerm, setSearchTerm] = useState('');
+      
+      const filteredUsers = allUsers.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.includes(searchTerm));
+      const totalRevenue = allUsers.filter(u => u.isPro).length * adminConfig.proPlanPrice;
+
+      return (
+          <div className="space-y-6 animate-in fade-in duration-500">
+              <h2 className="text-2xl font-bold text-white mb-6">Super Admin Overview</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <StatCard label="Total Users" value={allUsers.length} icon={<Users size={20}/>} color="blue" />
+                  <StatCard label="Pro Users" value={allUsers.filter(u => u.isPro).length} icon={<Shield size={20}/>} color="purple" />
+                  <StatCard label="Est. Revenue" value={`₹${totalRevenue}`} icon={<TrendingUp size={20}/>} color="emerald" />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Users List */}
+                <div className="lg:col-span-2 space-y-4">
+                    <div className="flex justify-between items-center">
+                        <h3 className="font-bold text-white">Registered Users</h3>
+                        <div className="relative">
+                            <Search size={16} className="absolute left-3 top-3 text-slate-500" />
+                            <input 
+                                className="bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Search users..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <Card className="overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-300">
+                                <thead className="bg-slate-800 text-slate-400 uppercase font-bold text-xs">
+                                    <tr>
+                                        <th className="px-6 py-4">Name / Email</th>
+                                        <th className="px-6 py-4">Mobile</th>
+                                        <th className="px-6 py-4">Status</th>
+                                        <th className="px-6 py-4">Joined</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {filteredUsers.map(user => (
+                                        <tr key={user.id} className="hover:bg-slate-800/50">
+                                            <td className="px-6 py-4">
+                                                <p className="font-medium text-white">{user.name}</p>
+                                                <p className="text-xs text-slate-500">{user.email}</p>
+                                            </td>
+                                            <td className="px-6 py-4">{user.mobile}</td>
+                                            <td className="px-6 py-4">
+                                                {user.isPro ? 
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs font-bold border border-purple-500/20">
+                                                        <Shield size={10} fill="currentColor" /> PRO
+                                                    </span> 
+                                                : 
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-700 text-slate-400 rounded text-xs font-bold">
+                                                        FREE
+                                                    </span>
+                                                }
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500">{user.joinedDate || 'N/A'}</td>
+                                        </tr>
+                                    ))}
+                                    {filteredUsers.length === 0 && (
+                                        <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">No users found.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+
+                {/* Settings Panel */}
+                <div className="space-y-4">
+                    <h3 className="font-bold text-white">Payment Settings</h3>
+                    <Card className="p-6 space-y-4 border-emerald-500/20">
+                        <div className="flex items-center gap-2 mb-2">
+                             <CreditCard className="text-emerald-500" size={20} />
+                             <h4 className="font-bold text-white">Razorpay Setup</h4>
+                        </div>
+                        <p className="text-xs text-slate-400 mb-4">Configure your API keys to accept payments.</p>
+                        
+                        <Input 
+                            label="Key ID" 
+                            type="password"
+                            value={adminConfig.razorpayKeyId} 
+                            onChange={(e:any) => setAdminConfig({...adminConfig, razorpayKeyId: e.target.value})} 
+                            placeholder="rzp_test_..."
+                        />
+                        <Input 
+                            label="Key Secret" 
+                            type="password"
+                            value={adminConfig.razorpayKeySecret} 
+                            onChange={(e:any) => setAdminConfig({...adminConfig, razorpayKeySecret: e.target.value})} 
+                        />
+                        <div className="pt-4 border-t border-slate-800">
+                             <Input 
+                                label="Pro Plan Price (₹)" 
+                                type="number"
+                                value={adminConfig.proPlanPrice} 
+                                onChange={(e:any) => setAdminConfig({...adminConfig, proPlanPrice: Number(e.target.value)})} 
+                            />
+                        </div>
+                        <Button onClick={saveAdminConfig} className="w-full bg-emerald-600 hover:bg-emerald-500">Save Configuration</Button>
+                    </Card>
+                </div>
+              </div>
+          </div>
+      );
   };
 
-  // --- Views ---
+  // --- USER Views ---
 
-  const DashboardView = () => (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-6 border-l-4 border-l-blue-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Odometer</p>
-              <h3 className="text-3xl font-bold text-white mt-1">{lastOdometer.toLocaleString()} <span className="text-lg text-slate-500 font-normal">km</span></h3>
-            </div>
-            <div className="p-3 bg-blue-500/10 rounded-lg text-blue-400"><Gauge size={24} /></div>
-          </div>
-        </Card>
-        <Card className="p-6 border-l-4 border-l-emerald-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Total Spent</p>
-              <h3 className="text-3xl font-bold text-white mt-1">₹{totalSpent.toLocaleString()}</h3>
-            </div>
-            <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-400"><DollarSign size={24} /></div>
-          </div>
-        </Card>
-        <Card className="p-6 border-l-4 border-l-orange-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Fuel Cost</p>
-              <h3 className="text-3xl font-bold text-white mt-1">₹{fuelSpent.toLocaleString()}</h3>
-            </div>
-            <div className="p-3 bg-orange-500/10 rounded-lg text-orange-400"><Fuel size={24} /></div>
-          </div>
-        </Card>
-        <Card className="p-6 border-l-4 border-l-purple-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Total Trips</p>
-              <h3 className="text-3xl font-bold text-white mt-1">{trips.length}</h3>
-            </div>
-            <div className="p-3 bg-purple-500/10 rounded-lg text-purple-400"><LayoutDashboard size={24} /></div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 p-6">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Activity className="text-blue-400" size={20} /> Recent Activity
-          </h3>
-          <div className="space-y-4">
-            {trips.length === 0 && expenses.length === 0 ? (
-              <p className="text-slate-500 italic text-center py-8">No activity recorded yet. Start logging!</p>
-            ) : (
-              [...trips.map(t => ({...t, type: 'trip'})), ...expenses.map(e => ({...e, type: 'expense'}))]
-                .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                .slice(0, 5)
-                .map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 hover:bg-slate-700/50 rounded-lg transition-colors border border-transparent hover:border-slate-700">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-full ${item.type === 'trip' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                        {item.type === 'trip' ? <Car size={18} /> : <DollarSign size={18} />}
-                      </div>
-                      <div>
-                        <p className="text-white font-medium">{item.type === 'trip' ? `Drive: ${item.distance} km` : `Expense: ${item.category}`}</p>
-                        <p className="text-slate-500 text-xs">{item.date} • {item.notes || (item.type === 'trip' ? item.type : item.vendor) || 'No notes'}</p>
-                      </div>
+  if (!currentUser) return <AuthScreen onLogin={handleLogin} />;
+  
+  // Render Admin View
+  if (currentUser.role === 'admin') {
+      return (
+        <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex">
+            <aside className="fixed top-0 left-0 h-full w-64 bg-slate-900 border-r border-slate-800 hidden md:flex flex-col z-20">
+                <div className="p-6 border-b border-slate-800">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-tr from-red-600 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
+                             <Shield className="text-white" size={24} />
+                        </div>
+                        <div>
+                            <h1 className="font-bold text-xl text-white tracking-tight">ADMIN</h1>
+                            <p className="text-xs text-slate-500">Super Admin Console</p>
+                        </div>
                     </div>
-                    <span className={`font-bold ${item.type === 'trip' ? 'text-slate-300' : 'text-emerald-400'}`}>
-                      {item.type === 'trip' ? `+${item.distance} km` : `-₹${item.amount}`}
-                    </span>
-                  </div>
-                ))
-            )}
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Wrench className="text-orange-400" size={20} /> Pending Maintenance
-          </h3>
-          <div className="space-y-3">
-            {tasks.filter(t => t.status === 'pending').slice(0, 5).map(task => (
-              <div key={task.id} className="flex items-center justify-between bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-                <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${task.frequency === 'Daily' ? 'bg-blue-400' : task.frequency === 'Monthly' ? 'bg-orange-400' : 'bg-red-400'}`} />
-                  <span className="text-slate-300 text-sm">{task.label}</span>
                 </div>
-                <button onClick={() => toggleTask(task.id)} className="text-xs bg-slate-700 hover:bg-green-600 text-slate-300 hover:text-white px-2 py-1 rounded transition-colors">
-                  Done
-                </button>
-              </div>
-            ))}
-            {tasks.filter(t => t.status === 'pending').length === 0 && (
-              <div className="text-center py-8 text-emerald-500 flex flex-col items-center">
-                <div className="bg-emerald-500/10 p-3 rounded-full mb-2">
-                  <Checkmark size={24} /> 
+                <div className="flex-1 p-4 space-y-2">
+                    <NavButton id="admin-dashboard" icon={LayoutDashboard} label="Overview" active={activeTab} set={setActiveTab} />
                 </div>
-                <p>All clear! Good job.</p>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-
-  const LogsView = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white">Daily Logs</h2>
-        <Button onClick={() => setShowAddTrip(!showAddTrip)}>
-          <Plus size={18} /> New Trip
-        </Button>
-      </div>
-
-      {showAddTrip && (
-        <Card className="p-6 bg-slate-800 border-blue-500/30 border">
-          <h3 className="text-lg font-bold text-white mb-4">Add New Trip</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input type="date" label="Date" value={newTrip.date} onChange={(e: any) => setNewTrip({...newTrip, date: e.target.value})} />
-            <Select label="Trip Type" options={['City', 'Highway', 'Office', 'Personal']} value={newTrip.type} onChange={(e: any) => setNewTrip({...newTrip, type: e.target.value})} />
-            <Input type="number" label="Start Odometer" value={newTrip.startOdometer} onChange={(e: any) => setNewTrip({...newTrip, startOdometer: Number(e.target.value)})} />
-            <Input type="number" label="End Odometer" value={newTrip.endOdometer || ''} onChange={(e: any) => setNewTrip({...newTrip, endOdometer: Number(e.target.value)})} />
-            <div className="md:col-span-2">
-              <Input label="Notes (Optional)" placeholder="Destination, purpose..." value={newTrip.notes} onChange={(e: any) => setNewTrip({...newTrip, notes: e.target.value})} />
-            </div>
-          </div>
-          <div className="flex justify-end gap-3 mt-4">
-            <Button variant="secondary" onClick={() => setShowAddTrip(false)}>Cancel</Button>
-            <Button onClick={handleAddTrip}>Save Log</Button>
-          </div>
-        </Card>
-      )}
-
-      <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-xl">
-        <table className="w-full text-left text-sm text-slate-300">
-          <thead className="bg-slate-900 text-slate-400 uppercase font-bold text-xs">
-            <tr>
-              <th className="px-6 py-4">Date</th>
-              <th className="px-6 py-4">Type</th>
-              <th className="px-6 py-4">Odometer (Start - End)</th>
-              <th className="px-6 py-4 text-right">Distance</th>
-              <th className="px-6 py-4">Notes</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-700 bg-slate-800">
-            {trips.map((trip) => (
-              <tr key={trip.id} className="hover:bg-slate-700/50 transition-colors">
-                <td className="px-6 py-4 font-medium text-white">{trip.date}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${trip.type === 'Highway' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300'}`}>
-                    {trip.type}
-                  </span>
-                </td>
-                <td className="px-6 py-4 font-mono text-slate-400">{trip.startOdometer} - {trip.endOdometer}</td>
-                <td className="px-6 py-4 text-right font-bold text-white">{trip.distance} km</td>
-                <td className="px-6 py-4 text-slate-500 truncate max-w-xs">{trip.notes}</td>
-              </tr>
-            ))}
-            {trips.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">No trips recorded yet.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  const ExpensesView = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white">Expense Tracker</h2>
-        <Button onClick={() => setShowAddExpense(!showAddExpense)} className="bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/50">
-          <Plus size={18} /> Add Expense
-        </Button>
-      </div>
-
-      {showAddExpense && (
-        <Card className="p-6 bg-slate-800 border-emerald-500/30 border">
-          <h3 className="text-lg font-bold text-white mb-4">Add Expense</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input type="date" label="Date" value={newExpense.date} onChange={(e: any) => setNewExpense({...newExpense, date: e.target.value})} />
-            <Select label="Category" options={['Fuel', 'Toll', 'Parking', 'Wash', 'Service', 'Insurance', 'Fine', 'Accessory']} value={newExpense.category} onChange={(e: any) => setNewExpense({...newExpense, category: e.target.value})} />
-            <Input type="number" label="Amount (₹)" value={newExpense.amount || ''} onChange={(e: any) => setNewExpense({...newExpense, amount: e.target.value})} />
-            <Input label="Vendor / Location" placeholder="Shell Station, Mechanic..." value={newExpense.vendor} onChange={(e: any) => setNewExpense({...newExpense, vendor: e.target.value})} />
-            <div className="md:col-span-2">
-              <Input label="Notes" placeholder="Details..." value={newExpense.notes} onChange={(e: any) => setNewExpense({...newExpense, notes: e.target.value})} />
-            </div>
-          </div>
-          <div className="flex justify-end gap-3 mt-4">
-            <Button variant="secondary" onClick={() => setShowAddExpense(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-500" onClick={handleAddExpense}>Save Expense</Button>
-          </div>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 overflow-x-auto rounded-xl border border-slate-700 shadow-xl">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-900 text-slate-400 uppercase font-bold text-xs">
-              <tr>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Category</th>
-                <th className="px-6 py-4">Vendor</th>
-                <th className="px-6 py-4 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700 bg-slate-800">
-              {expenses.map((expense) => (
-                <tr key={expense.id} className="hover:bg-slate-700/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-white">{expense.date}</td>
-                  <td className="px-6 py-4">
-                    <span className="flex items-center gap-2">
-                      {expense.category === 'Fuel' && <Fuel size={14} className="text-orange-400"/>}
-                      {expense.category === 'Service' && <Wrench size={14} className="text-blue-400"/>}
-                      {expense.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-400">{expense.vendor || '-'}</td>
-                  <td className="px-6 py-4 text-right font-bold text-emerald-400">₹{expense.amount}</td>
-                </tr>
-              ))}
-              {expenses.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-slate-500">No expenses recorded.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                <div className="p-4 border-t border-slate-800">
+                    <div className="bg-slate-800/50 rounded-lg p-3 mb-3">
+                        <p className="text-sm font-bold text-white">Super Admin</p>
+                        <p className="text-xs text-slate-500">admin@autolog.com</p>
+                    </div>
+                    <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10">
+                        <LogOut size={16} /> Sign Out
+                    </Button>
+                </div>
+            </aside>
+            <main className="md:ml-64 flex-1 p-8 pt-8 min-h-screen">
+                 <AdminDashboard />
+            </main>
         </div>
-        
-        <div className="space-y-4">
-          <Card className="p-6">
-            <h3 className="text-slate-400 uppercase text-xs font-bold tracking-wider mb-4">Cost Breakdown</h3>
-            <div className="space-y-4">
-              {[
-                { label: 'Fuel', val: fuelSpent, color: 'bg-orange-500' },
-                { label: 'Service', val: serviceSpent, color: 'bg-blue-500' },
-                { label: 'Other', val: totalSpent - fuelSpent - serviceSpent, color: 'bg-slate-500' }
-              ].map(stat => (
-                <div key={stat.label}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-300">{stat.label}</span>
-                    <span className="text-white font-bold">₹{stat.val.toLocaleString()}</span>
-                  </div>
-                  <div className="w-full bg-slate-700 rounded-full h-2">
-                    <div 
-                      className={`${stat.color} h-2 rounded-full`} 
-                      style={{ width: `${totalSpent > 0 ? (stat.val / totalSpent) * 100 : 0}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 pt-6 border-t border-slate-700">
-              <div className="flex justify-between items-end">
-                <span className="text-slate-400 text-sm">Cost per KM</span>
-                <span className="text-xl font-bold text-white">
-                  ₹{totalDistance > 0 ? (totalSpent / totalDistance).toFixed(2) : '0.00'}
-                </span>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
+      );
+  }
 
-  const MaintenanceView = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Maintenance Log</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {['Daily', 'Monthly', 'Yearly'].map(freq => (
-          <Card key={freq} className="p-0 overflow-hidden">
-            <div className="p-4 bg-slate-900 border-b border-slate-700 flex justify-between items-center">
-              <h3 className="font-bold text-white">{freq} Checks</h3>
-              <span className="text-xs font-mono text-slate-500">
-                {tasks.filter(t => t.frequency === freq && t.status === 'ok').length} / {tasks.filter(t => t.frequency === freq).length}
-              </span>
-            </div>
-            <div className="divide-y divide-slate-700/50">
-              {tasks.filter(t => t.frequency === freq).map(task => (
-                <div 
-                  key={task.id} 
-                  onClick={() => toggleTask(task.id)}
-                  className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${task.status === 'ok' ? 'bg-slate-800/50 opacity-50' : 'bg-slate-800 hover:bg-slate-700'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${task.status === 'ok' ? 'bg-emerald-500 border-emerald-500' : 'border-slate-500'}`}>
-                      {task.status === 'ok' && <Checkmark size={14} className="text-white" />}
-                    </div>
-                    <div>
-                      <p className={`text-sm font-medium ${task.status === 'ok' ? 'text-slate-400 line-through' : 'text-slate-200'}`}>{task.label}</p>
-                      {task.lastChecked && <p className="text-xs text-slate-500">Last: {task.lastChecked}</p>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        ))}
-      </div>
-      
-      <Card className="p-6 mt-8">
-        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <AlertTriangle className="text-yellow-500" /> Dashboard Warning Lights Reference
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {warningLights.map(light => (
-            <div key={light.id} className="bg-slate-900 p-4 rounded-lg border border-slate-700 flex gap-4 items-start">
-              <div className="mt-1 p-2 bg-slate-800 rounded-lg">{light.icon}</div>
-              <div>
-                <h4 className="font-bold text-white text-sm">{light.name}</h4>
-                <p className={`text-xs font-bold uppercase mb-1 ${light.severity === 'Critical' ? 'text-red-500' : light.severity === 'Medium' ? 'text-yellow-500' : 'text-blue-500'}`}>
-                  {light.severity}
-                </p>
-                <p className="text-xs text-slate-400 leading-relaxed">{light.desc}</p>
-              </div>
-            </div>
-          ))}
+  // Regular User Logic continues here
+  if (!currentUser.isOnboarded) return <OnboardingScreen user={currentUser} onComplete={handleOnboardingComplete} />;
+  if (!profile) return <div className="text-white p-10">Loading Profile...</div>;
+
+  const totalDistance = trips.reduce((acc, t) => acc + t.distance, 0);
+  const totalSpent = expenses.reduce((acc, e) => acc + e.amount, 0);
+
+  // User Dashboard Quick Actions
+  const QuickActions = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <Card className="p-4 border-l-4 border-l-blue-500 relative overflow-hidden group">
+        <div className="relative z-10">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold text-white">Log a Trip</h3>
+            <Car size={20} className="text-blue-400" />
+          </div>
+          {showAddTrip ? (
+             <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+               <div className="grid grid-cols-2 gap-2 mb-2">
+                 <Input className="mb-0" type="number" placeholder="End Odo" value={newTrip.endOdometer || ''} onChange={(e:any) => setNewTrip({...newTrip, endOdometer: Number(e.target.value)})} />
+                 <Input className="mb-0" type="text" placeholder="Notes" value={newTrip.notes} onChange={(e:any) => setNewTrip({...newTrip, notes: e.target.value})} />
+               </div>
+               <div className="flex gap-2">
+                 <Button onClick={handleAddTrip} className="flex-1 py-1 text-sm h-8">Save</Button>
+                 <Button variant="secondary" onClick={() => setShowAddTrip(false)} className="py-1 text-sm h-8">Cancel</Button>
+               </div>
+             </div>
+          ) : (
+            <>
+               <p className="text-sm text-slate-400 mb-3">Last Odo: <span className="text-white font-mono">{lastOdometer} km</span></p>
+               <Button onClick={() => { setNewTrip({...newTrip, startOdometer: lastOdometer}); setShowAddTrip(true); }} className="w-full py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 shadow-none">
+                  <Plus size={16} /> New Trip Log
+               </Button>
+            </>
+          )}
+        </div>
+      </Card>
+
+      <Card className="p-4 border-l-4 border-l-emerald-500 relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold text-white">Add Expense</h3>
+            <DollarSign size={20} className="text-emerald-400" />
+          </div>
+          {showAddExpense ? (
+             <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+               <div className="grid grid-cols-2 gap-2 mb-2">
+                 <Input className="mb-0" type="number" placeholder="Amount" value={newExpense.amount || ''} onChange={(e:any) => setNewExpense({...newExpense, amount: Number(e.target.value)})} />
+                 <Select className="mb-0 h-10 py-1" options={['Fuel', 'Toll', 'Parking', 'Other']} value={newExpense.category} onChange={(e:any) => setNewExpense({...newExpense, category: e.target.value})} />
+               </div>
+               <div className="flex gap-2">
+                 <Button onClick={handleAddExpense} className="bg-emerald-600 hover:bg-emerald-500 flex-1 py-1 text-sm h-8">Save</Button>
+                 <Button variant="secondary" onClick={() => setShowAddExpense(false)} className="py-1 text-sm h-8">Cancel</Button>
+               </div>
+             </div>
+          ) : (
+            <>
+               <p className="text-sm text-slate-400 mb-3">Total Spent: <span className="text-white font-mono">₹{totalSpent}</span></p>
+               <Button onClick={() => setShowAddExpense(true)} className="w-full py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 shadow-none">
+                  <Plus size={16} /> New Expense
+               </Button>
+            </>
+          )}
         </div>
       </Card>
     </div>
-  );
-
-  const SettingsView = () => (
-    <div className="max-w-2xl mx-auto">
-      <Card className="p-8">
-        <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-          <Car className="text-blue-500" /> Vehicle Profile
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Input label="Make" value={profile.make} onChange={(e: any) => setProfile({...profile, make: e.target.value})} />
-          <Input label="Model" value={profile.model} onChange={(e: any) => setProfile({...profile, model: e.target.value})} />
-          <Input label="Variant" value={profile.variant} onChange={(e: any) => setProfile({...profile, variant: e.target.value})} />
-          <Input label="Registration Number" value={profile.regNumber} onChange={(e: any) => setProfile({...profile, regNumber: e.target.value})} />
-          <Input label="VIN / Chassis No." value={profile.vin} onChange={(e: any) => setProfile({...profile, vin: e.target.value})} placeholder="Optional" />
-          <Select label="Fuel Type" options={['Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG']} value={profile.fuelType} onChange={(e: any) => setProfile({...profile, fuelType: e.target.value})} />
-        </div>
-        <div className="mt-8 pt-8 border-t border-slate-700">
-           <div className="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20 text-blue-200 text-sm flex gap-3">
-             <Info className="shrink-0" size={20} />
-             <p>This data is stored locally in your browser. Clearing your cache will remove this data. To create a permanent account, the Pro version is required.</p>
-           </div>
-           
-           <div className="mt-6 flex justify-between items-center">
-             <Button variant="outline" className="text-red-400 border-red-900/30 hover:bg-red-900/20" onClick={() => {
-               if(confirm('Are you sure? This will delete all logs.')) {
-                 localStorage.clear();
-                 window.location.reload();
-               }
-             }}>
-               <Trash2 size={16} /> Reset App Data
-             </Button>
-             <Button>
-               <Save size={16} /> Save Profile
-             </Button>
-           </div>
-        </div>
-      </Card>
-    </div>
-  );
-
-  // --- Layout ---
-
-  const NavItem = ({ id, icon: Icon, label }: any) => (
-    <button 
-      onClick={() => setActiveTab(id)}
-      className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-all ${
-        activeTab === id 
-        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-      }`}
-    >
-      <Icon size={20} />
-      <span>{label}</span>
-    </button>
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30 flex relative">
       
-      {/* Sidebar (Desktop) */}
+      {/* Pro Modal */}
+      {showProModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+              <Card className="w-full max-w-md p-0 overflow-hidden border-purple-500/30">
+                  <div className="bg-gradient-to-br from-purple-900 to-indigo-900 p-8 text-center">
+                      <Shield className="w-16 h-16 text-white mx-auto mb-4 opacity-90" strokeWidth={1.5} />
+                      <h2 className="text-2xl font-bold text-white mb-2">Upgrade to PRO</h2>
+                      <p className="text-purple-200 text-sm">Unlock the full power of Autolog</p>
+                  </div>
+                  <div className="p-8 space-y-6">
+                      <div className="space-y-3">
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Cloud Backup</div>
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Export PDF Reports</div>
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Multiple Vehicles</div>
+                      </div>
+                      
+                      <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
+                          <div>
+                              <p className="text-sm text-slate-500">Total Amount</p>
+                              <p className="text-2xl font-bold text-white">₹{adminConfig.proPlanPrice} <span className="text-sm font-normal text-slate-500">/year</span></p>
+                          </div>
+                      </div>
+                      
+                      <Button onClick={handleUpgradeToPro} className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/50">
+                          Pay Now (Secure)
+                      </Button>
+                      <button onClick={() => setShowProModal(false)} className="w-full text-center text-sm text-slate-500 hover:text-slate-300 mt-2">No thanks, I'll stay on free plan</button>
+                  </div>
+              </Card>
+          </div>
+      )}
+
+      {/* Sidebar Desktop */}
       <aside className="fixed top-0 left-0 h-full w-64 bg-slate-900 border-r border-slate-800 hidden md:flex flex-col z-20">
         <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -637,93 +729,250 @@ export default function AutologApp() {
             </div>
             <div>
               <h1 className="font-bold text-xl text-white tracking-tight">AUTOLOG</h1>
-              <p className="text-xs text-slate-500">Edition 1.0 (Web)</p>
+              <p className="text-xs text-slate-500">Web Edition</p>
             </div>
           </div>
         </div>
         
-        <div className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <div className="flex-1 p-4 space-y-2">
+          {!currentUser.isPro && (
+            <div 
+                onClick={() => setShowProModal(true)}
+                className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-900/50 to-indigo-900/50 border border-purple-500/30 cursor-pointer group hover:border-purple-500/50 transition-all"
+            >
+                <div className="flex items-center gap-2 mb-2">
+                    <Shield size={16} className="text-purple-400" />
+                    <span className="font-bold text-white text-sm">Go PRO</span>
+                </div>
+                <p className="text-xs text-purple-200 mb-2">Get cloud sync & exports.</p>
+                <div className="text-xs font-bold text-white bg-purple-600 px-2 py-1 rounded inline-block">Upgrade</div>
+            </div>
+          )}
+
           <div className="text-xs font-bold text-slate-600 uppercase tracking-wider px-4 mb-2 mt-4">Menu</div>
-          <NavItem id="dashboard" icon={LayoutDashboard} label="Dashboard" />
-          <NavItem id="logs" icon={FileText} label="Daily Logs" />
-          <NavItem id="expenses" icon={DollarSign} label="Expenses" />
-          <NavItem id="maintenance" icon={Wrench} label="Maintenance" />
-          
-          <div className="text-xs font-bold text-slate-600 uppercase tracking-wider px-4 mb-2 mt-8">System</div>
-          <NavItem id="settings" icon={Settings} label="Vehicle Profile" />
+          <NavButton id="dashboard" icon={LayoutDashboard} label="Dashboard" active={activeTab} set={setActiveTab} />
+          <NavButton id="logs" icon={FileText} label="Trip Logs" active={activeTab} set={setActiveTab} />
+          <NavButton id="expenses" icon={DollarSign} label="Expenses" active={activeTab} set={setActiveTab} />
+          <NavButton id="maintenance" icon={Wrench} label="Maintenance" active={activeTab} set={setActiveTab} />
+          <NavButton id="profile" icon={Settings} label="Vehicle Profile" active={activeTab} set={setActiveTab} />
         </div>
 
         <div className="p-4 border-t border-slate-800">
-           <div className="bg-slate-800 rounded-lg p-3 flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300">
-               {profile.make.substring(0,1)}
+           <div className="bg-slate-800/50 rounded-lg p-3 mb-3">
+             <div className="flex items-center gap-3 mb-2">
+               <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white uppercase relative">
+                 {currentUser.name.charAt(0)}
+                 {currentUser.isPro && <div className="absolute -bottom-1 -right-1 bg-purple-500 rounded-full p-0.5 border-2 border-slate-900"><Shield size={8} fill="currentColor" className="text-white"/></div>}
+               </div>
+               <div className="overflow-hidden">
+                 <div className="flex items-center gap-1">
+                    <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
+                    {currentUser.isPro && <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1 rounded border border-purple-500/20">PRO</span>}
+                 </div>
+                 <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
+               </div>
              </div>
-             <div className="overflow-hidden">
-               <p className="text-sm font-bold text-white truncate">{profile.model}</p>
-               <p className="text-xs text-slate-500 truncate">{profile.regNumber}</p>
+             <div className="text-xs text-slate-500 flex items-center gap-1">
+               <Smartphone size={10} /> {currentUser.mobile}
              </div>
            </div>
+           <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10">
+             <LogOut size={16} /> Sign Out
+           </Button>
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 w-full bg-slate-900 border-b border-slate-800 z-20 px-4 py-3 flex items-center justify-between">
-         <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center">
-              <Car className="text-white" size={18} />
-            </div>
-            <span className="font-bold text-white">AUTOLOG</span>
-         </div>
-         <button className="p-2 text-slate-400" onClick={() => setActiveTab('settings')}>
-           <Settings size={20} />
-         </button>
-      </div>
-
-      {/* Mobile Nav */}
-      <div className="md:hidden fixed bottom-0 w-full bg-slate-900 border-t border-slate-800 z-20 flex justify-around p-2">
-        <MobileNavItem id="dashboard" icon={LayoutDashboard} active={activeTab} set={setActiveTab} />
-        <MobileNavItem id="logs" icon={FileText} active={activeTab} set={setActiveTab} />
-        <MobileNavItem id="expenses" icon={DollarSign} active={activeTab} set={setActiveTab} />
-        <MobileNavItem id="maintenance" icon={Wrench} active={activeTab} set={setActiveTab} />
-      </div>
-
       {/* Main Content */}
-      <main className="md:ml-64 p-4 md:p-8 pt-20 md:pt-8 min-h-screen pb-24 md:pb-8">
-        {activeTab === 'dashboard' && <DashboardView />}
-        {activeTab === 'logs' && <LogsView />}
-        {activeTab === 'expenses' && <ExpensesView />}
-        {activeTab === 'maintenance' && <MaintenanceView />}
-        {activeTab === 'settings' && <SettingsView />}
-      </main>
+      <main className="md:ml-64 flex-1 p-4 md:p-8 pt-20 md:pt-8 min-h-screen pb-24 md:pb-8 w-full max-w-[100vw] overflow-x-hidden">
+        {/* Mobile Header */}
+        <div className="md:hidden fixed top-0 left-0 w-full bg-slate-900 border-b border-slate-800 z-20 px-4 py-3 flex items-center justify-between">
+           <span className="font-bold text-white flex items-center gap-2"><Car size={18} className="text-blue-500"/> AUTOLOG</span>
+           <button onClick={handleLogout}><LogOut size={18} className="text-slate-400"/></button>
+        </div>
 
+        {activeTab === 'dashboard' && (
+          <div className="animate-in fade-in duration-500">
+            <h2 className="text-2xl font-bold text-white mb-6">Dashboard</h2>
+            <QuickActions />
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <StatCard label="Total Km" value={`${totalDistance} km`} icon={<Gauge size={20}/>} color="blue" />
+              <StatCard label="Spent" value={`₹${totalSpent}`} icon={<DollarSign size={20}/>} color="emerald" />
+              <StatCard label="Trips" value={trips.length} icon={<LayoutDashboard size={20}/>} color="purple" />
+              <StatCard label="Vehicle" value={profile.regNumber} icon={<Car size={20}/>} color="slate" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="p-6">
+                <h3 className="font-bold text-white mb-4">Recent Activity</h3>
+                <div className="space-y-3">
+                   {[...trips.map(t => ({...t, type: 'trip'})), ...expenses.map(e => ({...e, type: 'expense'}))]
+                    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .slice(0, 5)
+                    .map((item: any) => (
+                      <div key={item.id} className="flex justify-between items-center text-sm p-2 hover:bg-slate-800 rounded">
+                        <div className="flex gap-3 items-center">
+                           <div className={`p-2 rounded-full ${item.type === 'trip' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                             {item.type === 'trip' ? <Car size={14} /> : <DollarSign size={14} />}
+                           </div>
+                           <div>
+                             <p className="text-white font-medium">{item.type === 'trip' ? 'Trip Logged' : item.category}</p>
+                             <p className="text-slate-500 text-xs">{item.date}</p>
+                           </div>
+                        </div>
+                        <span className="font-bold text-slate-300">{item.type === 'trip' ? `${item.distance} km` : `₹${item.amount}`}</span>
+                      </div>
+                    ))}
+                    {trips.length === 0 && expenses.length === 0 && <p className="text-slate-500 text-sm">No recent activity.</p>}
+                </div>
+              </Card>
+              
+              <Card className="p-6">
+                <h3 className="font-bold text-white mb-4">Maintenance Health</h3>
+                <div className="space-y-2">
+                  {tasks.slice(0,4).map(t => (
+                    <div key={t.id} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg">
+                      <div className="flex items-center gap-2">
+                         <div className={`w-2 h-2 rounded-full ${t.status === 'ok' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                         <span className="text-sm text-slate-300">{t.label}</span>
+                      </div>
+                      <span className="text-xs text-slate-500">{t.status === 'ok' ? 'Good' : 'Pending'}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+           <Card className="p-8 max-w-2xl mx-auto">
+             <div className="flex items-center gap-4 mb-6">
+               <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-2xl font-bold text-slate-500">
+                 {profile.make.charAt(0)}
+               </div>
+               <div>
+                 <h2 className="text-2xl font-bold text-white">{profile.make} {profile.model}</h2>
+                 <p className="text-slate-400">{profile.variant}</p>
+               </div>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <InfoItem label="Registration" value={profile.regNumber} icon={<FileText size={16}/>} />
+                <InfoItem label="Fuel Type" value={profile.fuelType} icon={<Fuel size={16}/>} />
+                <InfoItem label="VIN" value={profile.vin || 'Not Set'} icon={<Lock size={16}/>} />
+                <InfoItem label="Purchase Date" value={profile.purchaseDate} icon={<CalendarIcon size={16}/>} />
+             </div>
+             
+             <div className="mt-8 pt-6 border-t border-slate-800">
+               <h3 className="text-lg font-bold text-white mb-4">Owner Details</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <InfoItem label="Name" value={currentUser.name} icon={<User size={16}/>} />
+                  <InfoItem label="Mobile" value={currentUser.mobile} icon={<Smartphone size={16}/>} />
+                  <InfoItem label="Email" value={currentUser.email} icon={<Mail size={16}/>} />
+               </div>
+             </div>
+           </Card>
+        )}
+
+        {/* Other tabs can be expanded similarly, keeping logic from previous version but isolated */}
+        {activeTab === 'expenses' && (
+          <div className="space-y-4">
+             <h2 className="text-2xl font-bold text-white">Expense History</h2>
+             <div className="overflow-hidden rounded-xl border border-slate-800">
+               <table className="w-full text-left text-sm text-slate-300">
+                 <thead className="bg-slate-900 text-slate-400 font-bold uppercase text-xs">
+                   <tr>
+                     <th className="px-4 py-3">Date</th>
+                     <th className="px-4 py-3">Category</th>
+                     <th className="px-4 py-3 text-right">Amount</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-800 bg-slate-900/50">
+                   {expenses.map(e => (
+                     <tr key={e.id}>
+                       <td className="px-4 py-3">{e.date}</td>
+                       <td className="px-4 py-3">{e.category}</td>
+                       <td className="px-4 py-3 text-right text-emerald-400 font-bold">₹{e.amount}</td>
+                     </tr>
+                   ))}
+                   {expenses.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-500">No expenses yet.</td></tr>}
+                 </tbody>
+               </table>
+             </div>
+          </div>
+        )}
+        
+        {/* Mobile Bottom Nav */}
+        <div className="md:hidden fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-800 flex justify-around p-2 z-20">
+          <MobileNavBtn id="dashboard" icon={LayoutDashboard} active={activeTab} set={setActiveTab} />
+          <MobileNavBtn id="logs" icon={FileText} active={activeTab} set={setActiveTab} />
+          <MobileNavBtn id="expenses" icon={DollarSign} active={activeTab} set={setActiveTab} />
+          <MobileNavBtn id="profile" icon={User} active={activeTab} set={setActiveTab} />
+        </div>
+      </main>
     </div>
   );
 }
 
-const MobileNavItem = ({ id, icon: Icon, active, set }: any) => (
+// --- Helper Components ---
+
+const NavButton = ({ id, icon: Icon, label, active, set }: any) => (
   <button 
     onClick={() => set(id)}
-    className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${
+    className={cn(
+      "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-all",
+      active === id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+    )}
+  >
+    <Icon size={20} />
+    <span>{label}</span>
+  </button>
+);
+
+const MobileNavBtn = ({ id, icon: Icon, active, set }: any) => (
+  <button 
+    onClick={() => set(id)}
+    className={cn(
+      "p-3 rounded-xl flex flex-col items-center gap-1 transition-all",
       active === id ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500'
-    }`}
+    )}
   >
     <Icon size={20} />
   </button>
 );
 
-const Checkmark = ({size = 24, className = ""}) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="3" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <polyline points="20 6 9 17 4 12"></polyline>
-  </svg>
+const StatCard = ({ label, value, icon, color }: any) => (
+  <Card className={cn("p-4 border-l-4", 
+    color === 'blue' ? 'border-l-blue-500' : 
+    color === 'emerald' ? 'border-l-emerald-500' : 
+    color === 'purple' ? 'border-l-purple-500' : 'border-l-slate-500'
+  )}>
+    <div className="flex justify-between items-start">
+      <div>
+        <p className="text-slate-400 text-xs font-bold uppercase">{label}</p>
+        <h3 className="text-xl font-bold text-white mt-1">{value}</h3>
+      </div>
+      <div className={cn("p-2 rounded-lg opacity-80", 
+        color === 'blue' ? 'bg-blue-500/10 text-blue-400' : 
+        color === 'emerald' ? 'bg-emerald-500/10 text-emerald-400' : 
+        color === 'purple' ? 'bg-purple-500/10 text-purple-400' : 'bg-slate-500/10 text-slate-400'
+      )}>
+        {icon}
+      </div>
+    </div>
+  </Card>
+);
+
+const InfoItem = ({ label, value, icon }: any) => (
+  <div className="flex items-start gap-3 p-3 bg-slate-900 rounded-lg border border-slate-800">
+    <div className="mt-1 text-blue-500">{icon}</div>
+    <div>
+      <p className="text-xs text-slate-500 font-bold uppercase">{label}</p>
+      <p className="text-white font-medium">{value}</p>
+    </div>
+  </div>
+);
+
+const CalendarIcon = ({size, className}: any) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
 );
