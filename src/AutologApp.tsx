@@ -4,7 +4,7 @@ import {
   Plus, Save, Trash2, ChevronRight, LogOut, Droplet, Gauge, 
   DollarSign, FileText, Activity, Zap, Thermometer, Disc, Info, 
   User, Smartphone, Mail, Lock, Shield, CreditCard, Users, 
-  TrendingUp, CheckCircle, XCircle, Search
+  TrendingUp, CheckCircle, XCircle, Search, RefreshCw
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -157,8 +157,10 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: UserAccount) => void }) => {
     e.preventDefault();
     setError('');
     
-    // Hardcoded Admin Check
-    if (formData.email === 'admin@autolog.com' && formData.password === 'admin123') {
+    // Robust Admin Check (Trim + Lowercase)
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    
+    if (normalizedEmail === 'admin@autolog.com' && formData.password === 'admin123') {
       const adminUser: UserAccount = {
         id: 'admin_master',
         email: 'admin@autolog.com',
@@ -201,6 +203,13 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: UserAccount) => void }) => {
       };
       localStorage.setItem('autolog_users', JSON.stringify([...users, newUser]));
       onLogin(newUser);
+    }
+  };
+
+  const handleReset = () => {
+    if(confirm('This will delete all stored data on this device to fix login issues. Are you sure?')) {
+        localStorage.clear();
+        window.location.reload();
     }
   };
 
@@ -262,9 +271,13 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: UserAccount) => void }) => {
         <div className="mt-6 text-center relative z-10">
           <button 
             onClick={() => setIsLogin(!isLogin)} 
-            className="text-slate-400 hover:text-white text-sm transition-colors"
+            className="text-slate-400 hover:text-white text-sm transition-colors mb-4 block w-full"
           >
             {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+          </button>
+          
+          <button onClick={handleReset} className="text-xs text-slate-600 hover:text-red-400 flex items-center gap-1 mx-auto">
+             <RefreshCw size={10} /> Trouble logging in? Reset Data
           </button>
         </div>
       </Card>
