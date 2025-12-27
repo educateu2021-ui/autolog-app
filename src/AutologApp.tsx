@@ -5,7 +5,7 @@ import {
   DollarSign, FileText, Activity, Zap, Thermometer, Disc, Info, 
   User, Smartphone, Mail, Lock, Shield, CreditCard, Users, 
   TrendingUp, CheckCircle, Search, RefreshCw, X, LogIn, 
-  AlertCircle, Battery, Fan, Layers, Calendar
+  AlertCircle, Battery, Fan, Layers, Calendar, Smile, Meh, Frown
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -191,6 +191,29 @@ const StatCard = ({ label, value, icon, color }: any) => (
   </Card>
 );
 
+const WarningLightCard = ({ light }: { light: typeof WARNING_LIGHTS_DATA[0] }) => (
+  <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 flex gap-4 items-start hover:border-slate-700 transition-colors">
+    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 shrink-0">
+      {light.icon}
+    </div>
+    <div>
+      <div className="flex items-center gap-2 mb-1">
+        <h4 className="font-bold text-white text-sm">{light.name}</h4>
+        <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded uppercase", 
+          light.severity === 'Critical' ? 'bg-red-500/20 text-red-400' : 
+          light.severity === 'Warning' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'
+        )}>
+          {light.severity}
+        </span>
+      </div>
+      <p className="text-xs text-slate-400 mb-2">{light.desc}</p>
+      <div className="flex items-center gap-1 text-xs font-medium text-slate-300 bg-slate-800/50 px-2 py-1 rounded inline-block">
+        <AlertCircle size={10} /> Action: {light.action}
+      </div>
+    </div>
+  </div>
+);
+
 // --- Form Modals (Defined Outside) ---
 
 const AddTripModal = ({ isOpen, onClose, onSave, lastOdometer }: any) => {
@@ -312,6 +335,7 @@ export default function AutologApp() {
     MAINTENANCE_TASKS.map(t => ({ id: t.id, lastChecked: null, status: 'pending' }))
   );
   const [profile, setProfile] = useState<VehicleProfile>(DEFAULT_PROFILE);
+  const [vehicleMood, setVehicleMood] = useState('Excellent');
 
   // Modal State
   const [isTripModalOpen, setIsTripModalOpen] = useState(false);
@@ -341,6 +365,8 @@ export default function AutologApp() {
     const savedProfile = localStorage.getItem(`${p}_profile`);
     if(savedProfile) setProfile(JSON.parse(savedProfile));
     else setProfile(DEFAULT_PROFILE);
+    const savedMood = localStorage.getItem(`${p}_mood`);
+    if(savedMood) setVehicleMood(savedMood);
   };
 
   const saveUserData = () => {
@@ -350,9 +376,10 @@ export default function AutologApp() {
     localStorage.setItem(`${p}_expenses`, JSON.stringify(expenses));
     localStorage.setItem(`${p}_tasks`, JSON.stringify(tasks));
     localStorage.setItem(`${p}_profile`, JSON.stringify(profile));
+    localStorage.setItem(`${p}_mood`, vehicleMood);
   };
 
-  useEffect(() => { saveUserData(); }, [trips, expenses, tasks, profile]);
+  useEffect(() => { saveUserData(); }, [trips, expenses, tasks, profile, vehicleMood]);
 
   // Handlers
   const requireAuth = (callback: () => void) => {
@@ -696,39 +723,89 @@ export default function AutologApp() {
 
         {/* Maintenance Tab */}
         {activeTab === 'maintenance' && (
-            <div className="animate-in fade-in space-y-6">
-            <h2 className="text-2xl font-bold text-white">Maintenance Checklist</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {['Daily', 'Monthly', 'Yearly'].map(freq => (
-                <Card key={freq} className="p-0 overflow-hidden h-fit">
-                    <div className="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center backdrop-blur-sm">
-                        <h3 className="font-bold text-white">{freq} Checks</h3>
-                        <span className="text-xs bg-slate-900 px-2 py-1 rounded text-slate-400">
-                        {tasks.filter(t => MAINTENANCE_TASKS.find(def => def.id === t.id)?.frequency === freq && t.status === 'ok').length} / 
-                        {MAINTENANCE_TASKS.filter(def => def.frequency === freq).length}
-                        </span>
-                    </div>
-                    <div className="divide-y divide-slate-800">
-                        {MAINTENANCE_TASKS.filter(def => def.frequency === freq).map(def => {
-                        const state = tasks.find(t => t.id === def.id);
-                        return (
-                            <div key={def.id} className="p-4 flex gap-3 hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => state && toggleTask(state.id)}>
-                            <div className={cn("mt-1 w-5 h-5 rounded border flex items-center justify-center shrink-0", 
-                                state?.status === 'ok' ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600'
-                            )}>
-                                {state?.status === 'ok' && <CheckCircle size={12} className="text-white" />}
-                            </div>
-                            <div>
-                                <p className={cn("text-sm font-medium", state?.status === 'ok' ? "text-slate-500 line-through" : "text-slate-200")}>{def.label}</p>
-                                <p className="text-xs text-slate-500 mt-1">{def.category}</p>
-                            </div>
-                            </div>
-                        );
-                        })}
-                    </div>
+            <div className="animate-in fade-in space-y-8">
+              
+              {/* 1. Vehicle Mood Tracker (New Engagement Feature) */}
+              <div className="flex flex-col md:flex-row gap-6 items-start">
+                <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-white mb-2">Maintenance Log</h2>
+                    <p className="text-slate-400">Track routine checks and how your car feels.</p>
+                </div>
+                <Card className="p-4 flex items-center gap-4 bg-slate-800/50 border-slate-700">
+                     <span className="text-sm font-bold text-slate-300">Current Vehicle Mood:</span>
+                     <div className="flex gap-2">
+                        {['Excellent', 'Good', 'Okay', 'Bad'].map(mood => (
+                            <button 
+                                key={mood}
+                                onClick={() => setVehicleMood(mood)}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                                    vehicleMood === mood 
+                                        ? "bg-blue-600 border-blue-500 text-white shadow-lg scale-105" 
+                                        : "bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800"
+                                )}
+                            >
+                                {mood}
+                            </button>
+                        ))}
+                     </div>
                 </Card>
-                ))}
-            </div>
+              </div>
+        
+              {/* 2. Checklists (Restyled to 1st Version + Progress) */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {['Daily', 'Monthly', 'Yearly'].map(freq => {
+                   const freqTasks = MAINTENANCE_TASKS.filter(def => def.frequency === freq);
+                   const completedCount = tasks.filter(t => freqTasks.find(def => def.id === t.id) && t.status === 'ok').length;
+                   const progress = (completedCount / freqTasks.length) * 100;
+        
+                   return (
+                   <Card key={freq} className="p-0 overflow-hidden h-fit border-t-4 border-t-blue-500">
+                      <div className="p-4 bg-slate-900 border-b border-slate-800">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="font-bold text-white text-lg">{freq} Checks</h3>
+                            <span className="text-xs font-mono text-blue-400 bg-blue-500/10 px-2 py-1 rounded">
+                                {completedCount} / {freqTasks.length}
+                            </span>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-slate-800/50">
+                        {freqTasks.map(def => {
+                           const state = tasks.find(t => t.id === def.id);
+                           const isChecked = state?.status === 'ok';
+                           
+                           return (
+                             <div 
+                                key={def.id} 
+                                className={cn(
+                                    "p-4 flex gap-3 cursor-pointer transition-all hover:bg-slate-800/30",
+                                    isChecked ? "bg-slate-900/50" : ""
+                                )} 
+                                onClick={() => state && toggleTask(state.id)}
+                             >
+                               <div className={cn(
+                                   "mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors", 
+                                  isChecked ? 'bg-emerald-500 border-emerald-500 shadow-sm shadow-emerald-500/20' : 'border-slate-600 bg-slate-900'
+                               )}>
+                                 {isChecked && <CheckCircle size={14} className="text-white" strokeWidth={3} />}
+                               </div>
+                               <div className={cn("flex-1 transition-opacity", isChecked ? "opacity-50" : "opacity-100")}>
+                                 <p className={cn("text-sm font-medium", isChecked ? "text-slate-500 line-through decoration-slate-600" : "text-slate-200")}>
+                                    {def.label}
+                                 </p>
+                                 <p className="text-[10px] text-slate-500 mt-0.5 font-medium uppercase tracking-wider">{def.category}</p>
+                               </div>
+                             </div>
+                           );
+                        })}
+                      </div>
+                   </Card>
+                )})}
+              </div>
             </div>
         )}
 
