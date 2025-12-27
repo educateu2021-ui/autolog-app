@@ -5,7 +5,8 @@ import {
   DollarSign, FileText, Activity, Zap, Thermometer, Disc, Info, 
   User, Smartphone, Mail, Lock, Shield, CreditCard, Users, 
   TrendingUp, CheckCircle, Search, RefreshCw, X, LogIn, 
-  AlertCircle, Battery, Fan, Layers, Calendar, Smile, Meh, Frown
+  AlertCircle, Battery, Fan, Layers, Calendar, Smile, Meh, Frown,
+  Upload, Camera, FileCheck, Clock, AlertOctagon
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -101,12 +102,14 @@ type ExpenseLog = {
   amount: number;
   vendor: string;
   notes: string;
+  isVerified?: boolean; // From smart scan
 };
 
 type MaintenanceTaskState = {
   id: string;
   lastChecked: string | null;
-  status: 'pending' | 'ok';
+  status: 'pending' | 'ok' | 'issue';
+  issueDetails?: string;
 };
 
 const DEFAULT_PROFILE: VehicleProfile = {
@@ -214,7 +217,7 @@ const WarningLightCard = ({ light }: { light: typeof WARNING_LIGHTS_DATA[0] }) =
   </div>
 );
 
-// --- Form Modals (Defined Outside) ---
+// --- Modals ---
 
 const AddTripModal = ({ isOpen, onClose, onSave, lastOdometer }: any) => {
   const [formData, setFormData] = useState<Partial<TripLog>>({
@@ -319,6 +322,113 @@ const AddExpenseModal = ({ isOpen, onClose, onSave }: any) => {
   );
 };
 
+// --- Smart Scan Modal (PRO Feature) ---
+const SmartScanModal = ({ isOpen, onClose, onSave }: any) => {
+  const [step, setStep] = useState(1); // 1: Upload, 2: Scanning, 3: Confirm
+  const [scannedData, setScannedData] = useState<Partial<ExpenseLog>>({});
+
+  const handleSimulateScan = () => {
+    setStep(2);
+    setTimeout(() => {
+        // Mock extracted data
+        setScannedData({
+            date: new Date().toISOString().split('T')[0],
+            category: 'Service & Maintenance',
+            amount: 4500,
+            vendor: 'City Auto Care',
+            notes: 'Detected Items: Engine Oil, Oil Filter, Labor Charges',
+            isVerified: true
+        });
+        setStep(3);
+    }, 2000);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+      <Card className="w-full max-w-md p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white">
+          <X size={20} />
+        </button>
+        <div className="text-center mb-6">
+            <div className="w-12 h-12 bg-gradient-to-tr from-purple-600 to-blue-600 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-purple-500/30">
+               <Camera className="text-white" size={24} />
+            </div>
+            <h2 className="text-xl font-bold text-white">Smart Bill Scanner <span className="text-xs bg-purple-500 px-1.5 py-0.5 rounded text-white ml-2">PRO</span></h2>
+        </div>
+
+        {step === 1 && (
+            <div className="space-y-4">
+                <div 
+                    onClick={handleSimulateScan}
+                    className="border-2 border-dashed border-slate-700 hover:border-purple-500 rounded-xl p-8 text-center cursor-pointer transition-colors bg-slate-950/50"
+                >
+                    <Upload className="mx-auto text-slate-500 mb-2" />
+                    <p className="text-slate-300 font-medium">Click to Upload Bill</p>
+                    <p className="text-xs text-slate-500 mt-1">Supports JPG, PNG, PDF</p>
+                </div>
+                <p className="text-xs text-center text-slate-500">AI will auto-detect vendor, amount, and items.</p>
+            </div>
+        )}
+
+        {step === 2 && (
+            <div className="py-8 text-center space-y-4">
+                <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-purple-300 animate-pulse">Analyzing document...</p>
+                <div className="text-xs text-slate-500 space-y-1">
+                    <p>Detecting Vendor...</p>
+                    <p>Extracting Line Items...</p>
+                    <p>Calculating Total...</p>
+                </div>
+            </div>
+        )}
+
+        {step === 3 && (
+            <div className="space-y-4">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg flex gap-3 items-start">
+                    <CheckCircle className="text-emerald-500 shrink-0 mt-0.5" size={16} />
+                    <div className="text-sm">
+                        <p className="text-emerald-400 font-bold">Scan Complete!</p>
+                        <p className="text-slate-400">Please verify the extracted details below.</p>
+                    </div>
+                </div>
+                <Input label="Vendor" value={scannedData.vendor} onChange={(e:any) => setScannedData({...scannedData, vendor: e.target.value})} />
+                <Input label="Total Amount" type="number" value={scannedData.amount} onChange={(e:any) => setScannedData({...scannedData, amount: Number(e.target.value)})} />
+                <div className="bg-slate-950 p-3 rounded border border-slate-800 text-xs text-slate-400">
+                    <strong>Extracted Notes:</strong> {scannedData.notes}
+                </div>
+                <Button onClick={() => { onSave(scannedData); onClose(); }} variant="success" className="w-full">Confirm & Add to Log</Button>
+            </div>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+const IssueReportModal = ({ isOpen, onClose, onSave, taskName }: any) => {
+    const [notes, setNotes] = useState('');
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+            <Card className="w-full max-w-sm p-6 relative">
+                <h3 className="font-bold text-white text-lg mb-4 flex gap-2 items-center"><AlertOctagon className="text-red-500"/> Report Issue</h3>
+                <p className="text-sm text-slate-400 mb-4">What's wrong with <strong>{taskName}</strong>?</p>
+                <textarea 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-200 focus:outline-none focus:border-red-500/50 min-h-[100px]"
+                    placeholder="Describe the issue (e.g. Low tread depth, leak visible)..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                ></textarea>
+                <div className="flex gap-2 mt-4">
+                    <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
+                    <Button onClick={() => onSave(notes)} variant="danger" className="flex-1">Log Issue</Button>
+                </div>
+            </Card>
+        </div>
+    );
+};
+
 // --- Main App ---
 
 export default function AutologApp() {
@@ -340,11 +450,18 @@ export default function AutologApp() {
   // Modal State
   const [isTripModalOpen, setIsTripModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [isSmartScanOpen, setIsSmartScanOpen] = useState(false);
+  const [reportIssueData, setReportIssueData] = useState<{id: string, name: string} | null>(null);
 
   // Computed
   const lastOdometer = trips.length > 0 ? Math.max(...trips.map(t => t.endOdometer)) : 0;
   const totalDistance = trips.reduce((acc, t) => acc + t.distance, 0);
   const totalSpent = expenses.reduce((acc, e) => acc + e.amount, 0);
+  
+  // Health Score Calculation
+  const pendingIssues = tasks.filter(t => t.status === 'issue').length;
+  const overdueTasks = tasks.filter(t => t.status === 'pending').length;
+  const healthScore = Math.max(0, 100 - (pendingIssues * 15) - (overdueTasks * 2));
 
   // Effects
   useEffect(() => {
@@ -390,6 +507,14 @@ export default function AutologApp() {
     }
   };
 
+  const requirePro = (callback: () => void) => {
+      if (currentUser?.isPro) {
+          callback();
+      } else {
+          setShowProModal(true);
+      }
+  };
+
   const handleSaveTrip = (data: Partial<TripLog>) => {
     if (!data.endOdometer || data.endOdometer <= (data.startOdometer || 0)) {
       alert("End odometer must be greater than start."); return;
@@ -418,7 +543,8 @@ export default function AutologApp() {
       category: data.category!,
       amount: Number(data.amount),
       vendor: data.vendor || '',
-      notes: data.notes || ''
+      notes: data.notes || '',
+      isVerified: data.isVerified
     };
     setExpenses([expense, ...expenses]);
     setIsExpenseModalOpen(false);
@@ -435,12 +561,13 @@ export default function AutologApp() {
     }, 1500);
   };
 
-  const toggleTask = (taskId: string) => {
+  const updateTaskStatus = (taskId: string, status: 'ok' | 'issue' | 'pending', details?: string) => {
     requireAuth(() => {
       setTasks(tasks.map(t => t.id === taskId ? { 
         ...t, 
-        status: t.status === 'ok' ? 'pending' : 'ok',
-        lastChecked: new Date().toISOString().split('T')[0]
+        status: status,
+        lastChecked: new Date().toISOString().split('T')[0],
+        issueDetails: details || t.issueDetails
       } : t));
     });
   };
@@ -458,7 +585,7 @@ export default function AutologApp() {
         )}
       </div>
       
-      {/* Quick Actions - Restored to Buttons triggering Modals */}
+      {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="p-6 border-l-4 border-l-blue-500 hover:bg-slate-800/50 transition-colors group cursor-pointer" onClick={() => requireAuth(() => setIsTripModalOpen(true))}>
            <div className="flex justify-between items-start mb-4">
@@ -487,6 +614,25 @@ export default function AutologApp() {
         </Card>
       </div>
       
+      {/* Health Score Bar (PRO) */}
+      {currentUser?.isPro && (
+          <div className="bg-slate-900 rounded-xl p-4 border border-purple-500/30 relative overflow-hidden">
+              <div className="flex justify-between items-end mb-2 relative z-10">
+                  <div>
+                      <h3 className="text-purple-400 font-bold text-sm uppercase tracking-wider flex items-center gap-2"><Activity size={14}/> Vehicle Health Score</h3>
+                      <p className="text-slate-400 text-xs">Based on maintenance & issues</p>
+                  </div>
+                  <span className="text-3xl font-bold text-white">{healthScore}%</span>
+              </div>
+              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden relative z-10">
+                  <div className={cn("h-full transition-all duration-1000", 
+                      healthScore > 80 ? "bg-emerald-500" : healthScore > 50 ? "bg-yellow-500" : "bg-red-500"
+                  )} style={{ width: `${healthScore}%` }}></div>
+              </div>
+              <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-purple-600/10 rounded-full blur-2xl"></div>
+          </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total Km" value={`${totalDistance} km`} icon={<Gauge size={20}/>} color="blue" />
@@ -527,18 +673,17 @@ export default function AutologApp() {
             {tasks.slice(0, 5).map(t => {
                const taskDef = MAINTENANCE_TASKS.find(def => def.id === t.id);
                return (
-                <div key={t.id} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-transparent hover:border-slate-700 transition-all">
+                <div key={t.id} className={cn("flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-transparent transition-all", t.status === 'issue' ? 'border-red-500/50 bg-red-500/5' : 'hover:border-slate-700')}>
                   <div className="flex items-center gap-3">
-                      <button 
-                        onClick={() => toggleTask(t.id)}
-                        className={cn("w-5 h-5 rounded border flex items-center justify-center transition-colors", 
-                          t.status === 'ok' ? 'bg-emerald-500 border-emerald-500' : 'border-slate-500 hover:border-slate-300'
+                      <div className={cn("w-5 h-5 rounded border flex items-center justify-center transition-colors", 
+                          t.status === 'ok' ? 'bg-emerald-500 border-emerald-500' : t.status === 'issue' ? 'bg-red-500 border-red-500' : 'border-slate-500'
                         )}
                       >
                         {t.status === 'ok' && <CheckCircle size={12} className="text-white" />}
-                      </button>
+                        {t.status === 'issue' && <AlertOctagon size={12} className="text-white" />}
+                      </div>
                       <div>
-                        <span className={cn("text-sm block", t.status === 'ok' ? "text-slate-500 line-through" : "text-slate-300")}>{taskDef?.label}</span>
+                        <span className={cn("text-sm block", t.status === 'ok' ? "text-slate-500 line-through" : t.status === 'issue' ? "text-red-300 font-bold" : "text-slate-300")}>{taskDef?.label}</span>
                         <span className="text-[10px] text-slate-500 uppercase font-bold">{taskDef?.frequency}</span>
                       </div>
                   </div>
@@ -568,6 +713,20 @@ export default function AutologApp() {
         isOpen={isExpenseModalOpen} 
         onClose={() => setIsExpenseModalOpen(false)} 
         onSave={handleSaveExpense} 
+      />
+      <SmartScanModal 
+        isOpen={isSmartScanOpen}
+        onClose={() => setIsSmartScanOpen(false)}
+        onSave={handleSaveExpense}
+      />
+      <IssueReportModal
+        isOpen={!!reportIssueData}
+        taskName={reportIssueData?.name}
+        onClose={() => setReportIssueData(null)}
+        onSave={(notes: string) => {
+            if(reportIssueData) updateTaskStatus(reportIssueData.id, 'issue', notes);
+            setReportIssueData(null);
+        }}
       />
 
       {/* Auth Modal */}
@@ -607,13 +766,13 @@ export default function AutologApp() {
                   <div className="bg-gradient-to-br from-purple-900 to-indigo-900 p-8 text-center">
                       <Shield className="w-16 h-16 text-white mx-auto mb-4 opacity-90" strokeWidth={1.5} />
                       <h2 className="text-2xl font-bold text-white mb-2">Upgrade to PRO</h2>
-                      <p className="text-purple-200 text-sm">Unlock Cloud Backup, PDF Exports & More</p>
+                      <p className="text-purple-200 text-sm">Unlock Cloud Backup, PDF Exports & Smart Tools</p>
                   </div>
                   <div className="p-8 space-y-6">
                       <div className="space-y-3">
-                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Cloud Data Backup</div>
-                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Export Reports (PDF/CSV)</div>
-                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Multiple Vehicle Profiles</div>
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Smart Bill Scanning</div>
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Service History Timeline</div>
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Issue Reporting & Tracking</div>
                       </div>
                       
                       <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
@@ -656,7 +815,7 @@ export default function AutologApp() {
                     <Shield size={16} className="text-purple-400" />
                     <span className="font-bold text-white text-sm">Go PRO</span>
                 </div>
-                <p className="text-xs text-purple-200 mb-2">Unlock cloud sync & reports.</p>
+                <p className="text-xs text-purple-200 mb-2">Unlock cloud sync & smart tools.</p>
                 <div className="text-xs font-bold text-white bg-purple-600 px-2 py-1 rounded inline-block">Upgrade</div>
             </div>
           )}
@@ -668,6 +827,10 @@ export default function AutologApp() {
           <NavButton id="maintenance" icon={Wrench} label="Maintenance" active={activeTab} set={setActiveTab} />
           <NavButton id="warnings" icon={AlertTriangle} label="Warning Lights" active={activeTab} set={setActiveTab} />
           <NavButton id="profile" icon={Settings} label="Vehicle Profile" active={activeTab} set={setActiveTab} />
+
+          {/* Pro Tools Section */}
+          <div className="text-xs font-bold text-purple-500 uppercase tracking-wider px-4 mb-2 mt-6 flex items-center gap-1"><Shield size={10}/> Pro Tools</div>
+          <NavButton id="service_history" icon={Clock} label="Service History" active={activeTab} set={() => requirePro(() => setActiveTab('service_history'))} />
         </div>
 
         <div className="p-4 border-t border-slate-800">
@@ -717,6 +880,68 @@ export default function AutologApp() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {WARNING_LIGHTS_DATA.map(light => <WarningLightCard key={light.id} light={light} />)}
+                </div>
+            </div>
+        )}
+
+        {/* PRO: Service History Tab */}
+        {activeTab === 'service_history' && (
+            <div className="animate-in fade-in space-y-6">
+                <div className="flex justify-between items-end">
+                    <div>
+                        <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Clock className="text-purple-500"/> Service Timeline</h2>
+                        <p className="text-slate-400 text-sm">A visual history of all services and smart-scanned bills.</p>
+                    </div>
+                    <Button onClick={() => setIsSmartScanOpen(true)} variant="pro" className="gap-2">
+                        <Camera size={16} /> Scan Service Bill
+                    </Button>
+                </div>
+
+                <div className="space-y-6 relative before:absolute before:left-[19px] before:top-0 before:h-full before:w-[2px] before:bg-slate-800">
+                    {/* Auto Reminder Card */}
+                    <div className="relative pl-10">
+                        <div className="absolute left-0 top-0 w-10 h-10 bg-slate-900 border-2 border-purple-500 rounded-full flex items-center justify-center z-10">
+                            <Clock size={20} className="text-purple-500" />
+                        </div>
+                        <Card className="p-4 border-l-4 border-l-purple-500 bg-gradient-to-r from-slate-900 to-purple-900/20">
+                            <h3 className="font-bold text-white mb-1">Next Service Due</h3>
+                            <p className="text-sm text-slate-400 mb-3">Predicted based on your average usage of 45km/day.</p>
+                            <div className="flex gap-4">
+                                <div className="bg-slate-900 px-3 py-2 rounded border border-slate-700">
+                                    <span className="text-xs text-slate-500 block">Date</span>
+                                    <span className="text-white font-bold">12 Oct 2024</span>
+                                </div>
+                                <div className="bg-slate-900 px-3 py-2 rounded border border-slate-700">
+                                    <span className="text-xs text-slate-500 block">Odometer</span>
+                                    <span className="text-white font-bold">{lastOdometer + 5000} km</span>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {/* Timeline Items (From Expenses filtered by Service) */}
+                    {expenses.filter(e => e.category === 'Service & Maintenance').map(service => (
+                        <div key={service.id} className="relative pl-10">
+                            <div className="absolute left-0 top-0 w-10 h-10 bg-slate-900 border-2 border-slate-700 rounded-full flex items-center justify-center z-10">
+                                <Wrench size={18} className="text-slate-400" />
+                            </div>
+                            <Card className="p-4">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h4 className="font-bold text-white">{service.vendor || 'Unknown Service'}</h4>
+                                    <span className="text-emerald-400 font-bold">₹{service.amount}</span>
+                                </div>
+                                <p className="text-xs text-slate-500 mb-2">{service.date}</p>
+                                <p className="text-sm text-slate-300 bg-slate-950 p-2 rounded border border-slate-800">
+                                    {service.notes}
+                                </p>
+                                {service.isVerified && (
+                                    <div className="mt-2 flex items-center gap-1 text-xs text-purple-400">
+                                        <CheckCircle size={12} /> Verified by Smart Scan
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
+                    ))}
                 </div>
             </div>
         )}
@@ -777,27 +1002,47 @@ export default function AutologApp() {
                         {freqTasks.map(def => {
                            const state = tasks.find(t => t.id === def.id);
                            const isChecked = state?.status === 'ok';
+                           const isIssue = state?.status === 'issue';
                            
                            return (
                              <div 
                                 key={def.id} 
                                 className={cn(
-                                    "p-4 flex gap-3 cursor-pointer transition-all hover:bg-slate-800/30",
-                                    isChecked ? "bg-slate-900/50" : ""
-                                )} 
-                                onClick={() => state && toggleTask(state.id)}
+                                    "p-3 flex gap-3 items-center transition-all hover:bg-slate-800/30",
+                                    isChecked ? "bg-slate-900/50" : isIssue ? "bg-red-900/10" : ""
+                                )}
                              >
-                               <div className={cn(
-                                   "mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors", 
-                                  isChecked ? 'bg-emerald-500 border-emerald-500 shadow-sm shadow-emerald-500/20' : 'border-slate-600 bg-slate-900'
-                               )}>
-                                 {isChecked && <CheckCircle size={14} className="text-white" strokeWidth={3} />}
-                               </div>
-                               <div className={cn("flex-1 transition-opacity", isChecked ? "opacity-50" : "opacity-100")}>
-                                 <p className={cn("text-sm font-medium", isChecked ? "text-slate-500 line-through decoration-slate-600" : "text-slate-200")}>
+                               <div className="flex-1">
+                                 <p className={cn("text-sm font-medium", isChecked ? "text-slate-500 line-through" : isIssue ? "text-red-400" : "text-slate-200")}>
                                     {def.label}
                                  </p>
                                  <p className="text-[10px] text-slate-500 mt-0.5 font-medium uppercase tracking-wider">{def.category}</p>
+                                 {isIssue && state.issueDetails && (
+                                     <p className="text-xs text-red-400 bg-red-500/10 p-1 rounded mt-1 border border-red-500/20">{state.issueDetails}</p>
+                                 )}
+                               </div>
+                               
+                               <div className="flex gap-2">
+                                   {/* Pass Button */}
+                                   <button 
+                                        onClick={() => updateTaskStatus(def.id, isChecked ? 'pending' : 'ok')}
+                                        className={cn("w-7 h-7 rounded flex items-center justify-center transition-colors border", 
+                                            isChecked ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-600 text-slate-500 hover:bg-emerald-600/20 hover:text-emerald-500 hover:border-emerald-500"
+                                        )}
+                                        title="Mark OK"
+                                   >
+                                       <CheckCircle size={14} />
+                                   </button>
+                                   {/* Fail Button */}
+                                   <button 
+                                        onClick={() => isIssue ? updateTaskStatus(def.id, 'pending') : setReportIssueData({id: def.id, name: def.label})}
+                                        className={cn("w-7 h-7 rounded flex items-center justify-center transition-colors border", 
+                                            isIssue ? "bg-red-600 border-red-500 text-white" : "border-slate-600 text-slate-500 hover:bg-red-600/20 hover:text-red-500 hover:border-red-500"
+                                        )}
+                                        title="Report Issue"
+                                   >
+                                       <AlertOctagon size={14} />
+                                   </button>
                                </div>
                              </div>
                            );
@@ -849,9 +1094,14 @@ export default function AutologApp() {
           <div className="space-y-4 animate-in fade-in">
              <div className="flex justify-between items-center">
                  <h2 className="text-2xl font-bold text-white">Expense History</h2>
-                 <Button onClick={() => requireAuth(() => setIsExpenseModalOpen(true))}>
-                     <Plus size={16} /> New Expense
-                 </Button>
+                 <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => setIsSmartScanOpen(true)} className="hidden md:flex">
+                        <Camera size={16} className="mr-2"/> Smart Scan
+                    </Button>
+                    <Button onClick={() => requireAuth(() => setIsExpenseModalOpen(true))}>
+                        <Plus size={16} /> New Expense
+                    </Button>
+                 </div>
              </div>
              <div className="overflow-x-auto rounded-xl border border-slate-800">
                <table className="w-full text-left text-sm text-slate-300">
@@ -870,7 +1120,10 @@ export default function AutologApp() {
                        <td className="px-4 py-3">{e.date}</td>
                        <td className="px-4 py-3"><span className="text-blue-400">{e.category}</span></td>
                        <td className="px-4 py-3">{e.vendor || '-'}</td>
-                       <td className="px-4 py-3 max-w-xs truncate">{e.notes || '-'}</td>
+                       <td className="px-4 py-3 max-w-xs truncate">
+                           {e.notes || '-'}
+                           {e.isVerified && <span className="ml-2 text-[10px] text-purple-400 border border-purple-500/30 px-1 rounded">Auto-Scan</span>}
+                       </td>
                        <td className="px-4 py-3 text-right text-emerald-400 font-bold">₹{e.amount}</td>
                      </tr>
                    ))}
