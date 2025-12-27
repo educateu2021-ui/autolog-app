@@ -240,6 +240,20 @@ const NavButton = ({ id, icon: Icon, label, active, set, isAi = false }: any) =>
   </button>
 );
 
+const MobileNavBtn = ({ id, icon: Icon, active, set }: any) => (
+  <button 
+    onClick={() => set(id)}
+    className={cn(
+      "p-3 rounded-xl flex flex-col items-center gap-1 transition-all",
+      active === id 
+        ? id === 'ai_mechanic' ? 'text-teal-400 bg-teal-500/10' : 'text-blue-400 bg-blue-500/10' 
+        : 'text-slate-500'
+    )}
+  >
+    <Icon size={20} />
+  </button>
+);
+
 const WarningLightCard = ({ light }: { light: typeof WARNING_LIGHTS_DATA[0] }) => (
   <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 flex gap-4 items-start hover:border-slate-700 transition-colors">
     <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 shrink-0">
@@ -264,6 +278,105 @@ const WarningLightCard = ({ light }: { light: typeof WARNING_LIGHTS_DATA[0] }) =
 );
 
 // --- Modals (Defined OUTSIDE to fix focus bugs) ---
+
+const AuthModal = ({ isOpen, onClose, onLogin, onLoadDemo }: any) => {
+  const [step, setStep] = useState<'input' | 'otp'>('input');
+  const [data, setData] = useState({ email: '', mobile: '', otp: '' });
+  const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
+  const validateAndSendOTP = () => {
+    // Basic validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const mobileRegex = /^[0-9]{10}$/;
+
+    if (!emailRegex.test(data.email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!mobileRegex.test(data.mobile)) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    setError('');
+    setStep('otp');
+    // Simulate OTP
+    setTimeout(() => alert(`Your OTP is 1234`), 500);
+  };
+
+  const verifyOTP = () => {
+    if (data.otp === '1234') {
+        const generatedUser = { 
+            id: generateId(), 
+            name: data.email.split('@')[0], 
+            mobile: data.mobile, 
+            isPro: false 
+        };
+        onLogin(generatedUser);
+    } else {
+        setError('Invalid OTP. Please enter 1234.');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+       <Card className="w-full max-w-sm p-8 text-center relative">
+          <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X size={20}/></button>
+          
+          <div className="mb-6">
+            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+               <Car className="text-white" size={24} />
+            </div>
+            <h2 className="text-xl font-bold text-white">Welcome to Autolog</h2>
+            <p className="text-slate-400 text-xs mt-1">Sign in to sync your vehicle data</p>
+          </div>
+
+          {step === 'input' ? (
+              <div className="space-y-4">
+                  <Input 
+                    label="Email Address" 
+                    placeholder="user@example.com" 
+                    value={data.email} 
+                    onChange={(e:any) => setData({...data, email: e.target.value})} 
+                  />
+                  <Input 
+                    label="Mobile Number" 
+                    placeholder="9876543210" 
+                    type="tel"
+                    value={data.mobile} 
+                    onChange={(e:any) => setData({...data, mobile: e.target.value})} 
+                  />
+                  {error && <p className="text-red-400 text-xs">{error}</p>}
+                  <Button className="w-full" onClick={validateAndSendOTP}>Get OTP</Button>
+                  
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
+                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-900 px-2 text-slate-500">Or</span></div>
+                  </div>
+                  <button onClick={() => { onLoadDemo(); onClose(); }} className="text-sm text-blue-400 hover:underline w-full">Try Demo Mode</button>
+              </div>
+          ) : (
+              <div className="space-y-4 animate-in slide-in-from-right">
+                  <p className="text-sm text-slate-300">Enter the code sent to <br/><span className="text-white font-mono">{data.mobile}</span></p>
+                  <Input 
+                    label="One Time Password" 
+                    placeholder="1234" 
+                    className="text-center tracking-[0.5em] font-mono text-lg"
+                    maxLength={4}
+                    value={data.otp} 
+                    onChange={(e:any) => setData({...data, otp: e.target.value})} 
+                  />
+                  {error && <p className="text-red-400 text-xs">{error}</p>}
+                  <Button className="w-full" onClick={verifyOTP}>Verify & Login</Button>
+                  <button onClick={() => setStep('input')} className="text-xs text-slate-500 hover:text-white">Change details</button>
+              </div>
+          )}
+       </Card>
+    </div>
+  );
+};
 
 const WalkthroughModal = ({ stepIndex, onNext, onSkip }: any) => {
   const step = WALKTHROUGH_STEPS[stepIndex];
@@ -894,6 +1007,13 @@ export default function AutologApp() {
         }
       }} />
 
+      <AuthModal 
+        isOpen={showAuth} 
+        onClose={() => setShowAuth(false)} 
+        onLogin={(u: any) => { setUser(u); localStorage.setItem('autolog_user', JSON.stringify(u)); setShowAuth(false); }}
+        onLoadDemo={() => { loadDemoData(); setShowAuth(false); }}
+      />
+
       {/* Sidebar */}
       <aside className="fixed top-0 left-0 h-full w-64 bg-slate-900 border-r border-slate-800 hidden md:flex flex-col z-20">
         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
@@ -1050,21 +1170,13 @@ export default function AutologApp() {
          )}
       </main>
 
-      {/* Auth Overlay */}
-      {showAuth && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-           <Card className="w-full max-w-sm p-8 text-center">
-              <h2 className="text-xl font-bold text-white mb-2">Welcome to Autolog</h2>
-              <p className="text-slate-400 text-sm mb-6">Sign in to save your vehicle history.</p>
-              <Button className="w-full mb-3" onClick={() => {
-                 const u = {id: generateId(), name: 'User', mobile: '9999999999', isPro: false};
-                 setUser(u); localStorage.setItem('autolog_user', JSON.stringify(u)); setShowAuth(false);
-              }}>Sign In / Register</Button>
-              <button onClick={() => { loadDemoData(); setShowAuth(false); }} className="text-sm text-blue-400 hover:underline">Try Demo Mode (Pro Features)</button>
-              <button onClick={() => setShowAuth(false)} className="absolute top-4 right-4 text-slate-500"><X size={20}/></button>
-           </Card>
-        </div>
-      )}
+      {/* Mobile Bottom Nav (Updated) */}
+      <div className="md:hidden fixed bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur border-t border-slate-800 flex justify-around p-2 pb-4 z-20">
+        <MobileNavBtn id="dashboard" icon={LayoutDashboard} active={activeTab} set={setActiveTab} />
+        <MobileNavBtn id="logs" icon={FileText} active={activeTab} set={setActiveTab} />
+        <MobileNavBtn id="expenses" icon={DollarSign} active={activeTab} set={setActiveTab} />
+        <MobileNavBtn id="ai_mechanic" icon={Sparkles} active={activeTab} set={setActiveTab} />
+      </div>
       
       {/* Pro Upsell Modal */}
       {modals.pro && (
