@@ -5,7 +5,7 @@ import {
   DollarSign, FileText, Activity, Zap, Thermometer, Disc, Info, 
   User, Smartphone, Mail, Lock, Shield, CreditCard, Users, 
   TrendingUp, CheckCircle, Search, RefreshCw, X, LogIn, 
-  AlertCircle, Battery, Fan, Layers
+  AlertCircle, Battery, Fan, Layers, Calendar
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -26,6 +26,8 @@ const EXPENSE_CATEGORIES = [
   'Repairs', 'Insurance', 'Fines/Challan', 'Accessories', 
   'Tuning/Mods', 'EMI', 'Tyres', 'Other'
 ];
+
+const TRIP_TYPES = ['City', 'Highway', 'Office Commute', 'Personal', 'Road Trip', 'Off-Road'];
 
 const MAINTENANCE_TASKS = [
   { id: 'd1', label: 'Check Tyre Pressure', frequency: 'Daily', category: 'Safety' },
@@ -72,6 +74,16 @@ type UserAccount = {
   isPro: boolean;
 };
 
+type VehicleProfile = {
+  make: string;
+  model: string;
+  variant: string;
+  regNumber: string;
+  vin: string;
+  purchaseDate: string;
+  fuelType: string;
+};
+
 type TripLog = {
   id: string;
   date: string;
@@ -97,7 +109,17 @@ type MaintenanceTaskState = {
   status: 'pending' | 'ok';
 };
 
-// --- Shared Components (Defined Outside to Fix Focus Bug) ---
+const DEFAULT_PROFILE: VehicleProfile = {
+  make: '',
+  model: '',
+  variant: '',
+  regNumber: '',
+  vin: '',
+  purchaseDate: '',
+  fuelType: 'Petrol'
+};
+
+// --- Shared Components ---
 
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
   <div className={cn("bg-slate-900 border border-slate-800 rounded-xl shadow-sm", className)}>
@@ -113,7 +135,8 @@ const Button = ({ children, onClick, variant = 'primary', className = '', type =
     danger: "bg-red-500/10 text-red-400 hover:bg-red-500/20",
     success: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/50",
     outline: "border border-slate-600 text-slate-300 hover:bg-slate-800",
-    ghost: "text-slate-400 hover:text-white hover:bg-slate-800"
+    ghost: "text-slate-400 hover:text-white hover:bg-slate-800",
+    pro: "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-900/50"
   };
   return (
     <button type={type} onClick={onClick} disabled={disabled} className={cn(baseStyle, variants[variant as keyof typeof variants], className)} title={title}>
@@ -168,28 +191,110 @@ const StatCard = ({ label, value, icon, color }: any) => (
   </Card>
 );
 
-const WarningLightCard = ({ light }: { light: typeof WARNING_LIGHTS_DATA[0] }) => (
-  <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 flex gap-4 items-start hover:border-slate-700 transition-colors">
-    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 shrink-0">
-      {light.icon}
+// --- Form Modals (Defined Outside) ---
+
+const AddTripModal = ({ isOpen, onClose, onSave, lastOdometer }: any) => {
+  const [formData, setFormData] = useState<Partial<TripLog>>({
+    date: new Date().toISOString().split('T')[0],
+    type: 'City',
+    startOdometer: lastOdometer,
+    endOdometer: lastOdometer + 1,
+    notes: ''
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        type: 'City',
+        startOdometer: lastOdometer,
+        endOdometer: lastOdometer,
+        notes: ''
+      });
+    }
+  }, [isOpen, lastOdometer]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+      <Card className="w-full max-w-lg p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white">
+          <X size={20} />
+        </button>
+        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+          <Car className="text-blue-500" /> Log New Trip
+        </h2>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Date" type="date" value={formData.date} onChange={(e:any) => setFormData({...formData, date: e.target.value})} />
+          <Select label="Trip Type" options={TRIP_TYPES} value={formData.type} onChange={(e:any) => setFormData({...formData, type: e.target.value})} />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Start Odometer" type="number" value={formData.startOdometer} onChange={(e:any) => setFormData({...formData, startOdometer: Number(e.target.value)})} />
+          <Input label="End Odometer" type="number" value={formData.endOdometer} onChange={(e:any) => setFormData({...formData, endOdometer: Number(e.target.value)})} />
+        </div>
+
+        <div className="mb-4">
+            <label className="block text-slate-400 text-sm font-medium mb-1">Distance (Calculated)</label>
+            <div className="text-2xl font-bold text-white font-mono bg-slate-950 p-2 rounded-lg border border-slate-800">
+                {Math.max(0, (formData.endOdometer || 0) - (formData.startOdometer || 0))} km
+            </div>
+        </div>
+
+        <Input label="Notes (Route/Purpose)" placeholder="e.g. Office to Home via Highway" value={formData.notes} onChange={(e:any) => setFormData({...formData, notes: e.target.value})} />
+        
+        <div className="flex gap-3 mt-6">
+          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
+          <Button onClick={() => onSave(formData)} className="flex-1">Save Trip Log</Button>
+        </div>
+      </Card>
     </div>
-    <div>
-      <div className="flex items-center gap-2 mb-1">
-        <h4 className="font-bold text-white text-sm">{light.name}</h4>
-        <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded uppercase", 
-          light.severity === 'Critical' ? 'bg-red-500/20 text-red-400' : 
-          light.severity === 'Warning' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'
-        )}>
-          {light.severity}
-        </span>
-      </div>
-      <p className="text-xs text-slate-400 mb-2">{light.desc}</p>
-      <div className="flex items-center gap-1 text-xs font-medium text-slate-300 bg-slate-800/50 px-2 py-1 rounded inline-block">
-        <AlertCircle size={10} /> Action: {light.action}
-      </div>
+  );
+};
+
+const AddExpenseModal = ({ isOpen, onClose, onSave }: any) => {
+  const [formData, setFormData] = useState<Partial<ExpenseLog>>({
+    date: new Date().toISOString().split('T')[0],
+    category: 'Fuel',
+    amount: 0,
+    vendor: '',
+    notes: ''
+  });
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+      <Card className="w-full max-w-lg p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white">
+          <X size={20} />
+        </button>
+        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+          <DollarSign className="text-emerald-500" /> Add Expense
+        </h2>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Date" type="date" value={formData.date} onChange={(e:any) => setFormData({...formData, date: e.target.value})} />
+          <Select label="Category" options={EXPENSE_CATEGORIES} value={formData.category} onChange={(e:any) => setFormData({...formData, category: e.target.value})} />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+           <Input label="Amount (₹)" type="number" placeholder="0.00" value={formData.amount || ''} onChange={(e:any) => setFormData({...formData, amount: Number(e.target.value)})} />
+           <Input label="Vendor / Payee" placeholder="e.g. Shell Petrol Pump" value={formData.vendor} onChange={(e:any) => setFormData({...formData, vendor: e.target.value})} />
+        </div>
+
+        <Input label="Notes" placeholder="Details (Litres, Invoice No, etc.)" value={formData.notes} onChange={(e:any) => setFormData({...formData, notes: e.target.value})} />
+        
+        <div className="flex gap-3 mt-6">
+          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
+          <Button variant="success" onClick={() => onSave(formData)} className="flex-1">Save Expense</Button>
+        </div>
+      </Card>
     </div>
-  </div>
-);
+  );
+};
 
 // --- Main App ---
 
@@ -197,6 +302,7 @@ export default function AutologApp() {
   // Global State
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   
   // Data State
@@ -205,17 +311,11 @@ export default function AutologApp() {
   const [tasks, setTasks] = useState<MaintenanceTaskState[]>(
     MAINTENANCE_TASKS.map(t => ({ id: t.id, lastChecked: null, status: 'pending' }))
   );
-  const [profile, setProfile] = useState<any>({ regNumber: 'KA-01-XX-0000', make: 'My Car' });
+  const [profile, setProfile] = useState<VehicleProfile>(DEFAULT_PROFILE);
 
-  // Input State (Lifted up to avoid re-renders)
-  const [newTrip, setNewTrip] = useState<Partial<TripLog>>({ 
-    date: new Date().toISOString().split('T')[0], type: 'City' 
-  });
-  const [newExpense, setNewExpense] = useState<Partial<ExpenseLog>>({ 
-    date: new Date().toISOString().split('T')[0], category: 'Fuel' 
-  });
-  const [showAddTrip, setShowAddTrip] = useState(false);
-  const [showAddExpense, setShowAddExpense] = useState(false);
+  // Modal State
+  const [isTripModalOpen, setIsTripModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
   // Computed
   const lastOdometer = trips.length > 0 ? Math.max(...trips.map(t => t.endOdometer)) : 0;
@@ -240,6 +340,7 @@ export default function AutologApp() {
     if(savedTasks) setTasks(JSON.parse(savedTasks));
     const savedProfile = localStorage.getItem(`${p}_profile`);
     if(savedProfile) setProfile(JSON.parse(savedProfile));
+    else setProfile(DEFAULT_PROFILE);
   };
 
   const saveUserData = () => {
@@ -262,38 +363,49 @@ export default function AutologApp() {
     }
   };
 
-  const handleAddTrip = () => {
-    if (!newTrip.endOdometer || newTrip.endOdometer <= (newTrip.startOdometer || lastOdometer)) {
+  const handleSaveTrip = (data: Partial<TripLog>) => {
+    if (!data.endOdometer || data.endOdometer <= (data.startOdometer || 0)) {
       alert("End odometer must be greater than start."); return;
     }
-    const distance = (newTrip.endOdometer || 0) - (newTrip.startOdometer || lastOdometer);
+    const distance = (data.endOdometer || 0) - (data.startOdometer || 0);
     const trip: TripLog = {
       id: generateId(),
-      date: newTrip.date!,
-      startOdometer: newTrip.startOdometer || lastOdometer,
-      endOdometer: newTrip.endOdometer,
+      date: data.date!,
+      startOdometer: data.startOdometer || 0,
+      endOdometer: data.endOdometer,
       distance,
-      type: newTrip.type!,
-      notes: newTrip.notes || ''
+      type: data.type!,
+      notes: data.notes || ''
     };
     setTrips([trip, ...trips]);
-    setShowAddTrip(false);
-    setNewTrip({ ...newTrip, startOdometer: trip.endOdometer, endOdometer: undefined, notes: '' });
+    setIsTripModalOpen(false);
   };
 
-  const handleAddExpense = () => {
-    if (!newExpense.amount || newExpense.amount <= 0) return;
+  const handleSaveExpense = (data: Partial<ExpenseLog>) => {
+    if (!data.amount || data.amount <= 0) {
+        alert("Please enter a valid amount"); return;
+    }
     const expense: ExpenseLog = {
       id: generateId(),
-      date: newExpense.date!,
-      category: newExpense.category!,
-      amount: Number(newExpense.amount),
-      vendor: newExpense.vendor || '',
-      notes: newExpense.notes || ''
+      date: data.date!,
+      category: data.category!,
+      amount: Number(data.amount),
+      vendor: data.vendor || '',
+      notes: data.notes || ''
     };
     setExpenses([expense, ...expenses]);
-    setShowAddExpense(false);
-    setNewExpense({ ...newExpense, amount: 0, vendor: '', notes: '' });
+    setIsExpenseModalOpen(false);
+  };
+
+  const handleGoPro = () => {
+    setTimeout(() => {
+        if(!currentUser) return;
+        const updatedUser = { ...currentUser, isPro: true };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('autolog_current_user', JSON.stringify(updatedUser));
+        setShowProModal(false);
+        alert('Welcome to Pro! Payment successful.');
+    }, 1500);
   };
 
   const toggleTask = (taskId: string) => {
@@ -319,96 +431,41 @@ export default function AutologApp() {
         )}
       </div>
       
-      {/* Quick Actions */}
+      {/* Quick Actions - Restored to Buttons triggering Modals */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Log Trip Card */}
-        <Card className="p-4 border-l-4 border-l-blue-500">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold text-white">Log a Trip</h3>
-            <Car size={20} className="text-blue-400" />
-          </div>
-          {showAddTrip ? (
-             <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-               <div className="grid grid-cols-2 gap-2 mb-2">
-                 <Input 
-                   className="mb-0" 
-                   type="number" 
-                   label="End Odo"
-                   placeholder={lastOdometer} 
-                   value={newTrip.endOdometer || ''} 
-                   onChange={(e:any) => setNewTrip(prev => ({...prev, endOdometer: Number(e.target.value)}))} 
-                 />
-                 <Input 
-                   className="mb-0" 
-                   type="text" 
-                   label="Notes"
-                   placeholder="Destination..." 
-                   value={newTrip.notes || ''} 
-                   onChange={(e:any) => setNewTrip(prev => ({...prev, notes: e.target.value}))} 
-                 />
+        <Card className="p-6 border-l-4 border-l-blue-500 hover:bg-slate-800/50 transition-colors group cursor-pointer" onClick={() => requireAuth(() => setIsTripModalOpen(true))}>
+           <div className="flex justify-between items-start mb-4">
+               <div>
+                  <h3 className="font-bold text-white text-lg">Log a Trip</h3>
+                  <p className="text-slate-400 text-sm">Record new journey details</p>
                </div>
-               <div className="flex gap-2">
-                 <Button onClick={handleAddTrip} className="flex-1 py-1 text-sm h-8">Save</Button>
-                 <Button variant="secondary" onClick={() => setShowAddTrip(false)} className="py-1 text-sm h-8">Cancel</Button>
+               <div className="p-3 bg-blue-500/20 rounded-lg text-blue-400 group-hover:scale-110 transition-transform">
+                   <Car size={24} />
                </div>
-             </div>
-          ) : (
-            <>
-               <p className="text-sm text-slate-400 mb-3">Last Odo: <span className="text-white font-mono">{lastOdometer} km</span></p>
-               <Button onClick={() => requireAuth(() => { setNewTrip(p => ({...p, startOdometer: lastOdometer})); setShowAddTrip(true); })} className="w-full py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 shadow-none">
-                  <Plus size={16} /> New Trip Log
-               </Button>
-            </>
-          )}
+           </div>
+           <p className="text-sm text-slate-500">Last Odo: <span className="text-white font-mono font-bold">{lastOdometer} km</span></p>
         </Card>
 
-        {/* Add Expense Card */}
-        <Card className="p-4 border-l-4 border-l-emerald-500">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold text-white">Add Expense</h3>
-            <DollarSign size={20} className="text-emerald-400" />
-          </div>
-          {showAddExpense ? (
-             <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-               <div className="grid grid-cols-2 gap-2 mb-2">
-                 <Input 
-                    className="mb-0" 
-                    type="number" 
-                    placeholder="0.00" 
-                    label="Amount"
-                    value={newExpense.amount || ''} 
-                    onChange={(e:any) => setNewExpense(prev => ({...prev, amount: Number(e.target.value)}))} 
-                 />
-                 <Select 
-                    className="mb-0 h-[42px] py-2" 
-                    label="Type"
-                    options={EXPENSE_CATEGORIES} 
-                    value={newExpense.category} 
-                    onChange={(e:any) => setNewExpense(prev => ({...prev, category: e.target.value}))} 
-                 />
+        <Card className="p-6 border-l-4 border-l-emerald-500 hover:bg-slate-800/50 transition-colors group cursor-pointer" onClick={() => requireAuth(() => setIsExpenseModalOpen(true))}>
+           <div className="flex justify-between items-start mb-4">
+               <div>
+                  <h3 className="font-bold text-white text-lg">Add Expense</h3>
+                  <p className="text-slate-400 text-sm">Fuel, service, or repairs</p>
                </div>
-               <div className="flex gap-2">
-                 <Button onClick={handleAddExpense} className="bg-emerald-600 hover:bg-emerald-500 flex-1 py-1 text-sm h-8">Save</Button>
-                 <Button variant="secondary" onClick={() => setShowAddExpense(false)} className="py-1 text-sm h-8">Cancel</Button>
+               <div className="p-3 bg-emerald-500/20 rounded-lg text-emerald-400 group-hover:scale-110 transition-transform">
+                   <DollarSign size={24} />
                </div>
-             </div>
-          ) : (
-            <>
-               <p className="text-sm text-slate-400 mb-3">Total Spent: <span className="text-white font-mono">₹{totalSpent}</span></p>
-               <Button onClick={() => requireAuth(() => setShowAddExpense(true))} className="w-full py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 shadow-none">
-                  <Plus size={16} /> New Expense
-               </Button>
-            </>
-          )}
+           </div>
+           <p className="text-sm text-slate-500">Total Spent: <span className="text-white font-mono font-bold">₹{totalSpent.toLocaleString()}</span></p>
         </Card>
       </div>
       
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total Km" value={`${totalDistance} km`} icon={<Gauge size={20}/>} color="blue" />
-        <StatCard label="Spent" value={`₹${totalSpent}`} icon={<DollarSign size={20}/>} color="emerald" />
+        <StatCard label="Spent" value={`₹${totalSpent.toLocaleString()}`} icon={<DollarSign size={20}/>} color="emerald" />
         <StatCard label="Trips" value={trips.length} icon={<LayoutDashboard size={20}/>} color="purple" />
-        <StatCard label="Profile" value={currentUser ? profile.regNumber : 'Guest'} icon={<Car size={20}/>} color="slate" />
+        <StatCard label="Vehicle" value={currentUser && profile.regNumber ? profile.regNumber : 'Setup Needed'} icon={<Car size={20}/>} color="slate" />
       </div>
 
       {/* Recent Lists */}
@@ -416,21 +473,21 @@ export default function AutologApp() {
         <Card className="p-6">
           <h3 className="font-bold text-white mb-4">Recent Activity</h3>
           <div className="space-y-3">
-              {[...trips.map(t => ({...t, type: 'trip'})), ...expenses.map(e => ({...e, type: 'expense'}))]
+              {[...trips.map(t => ({...t, recordType: 'trip'})), ...expenses.map(e => ({...e, recordType: 'expense'}))]
               .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
               .slice(0, 5)
               .map((item: any) => (
                 <div key={item.id} className="flex justify-between items-center text-sm p-2 hover:bg-slate-800 rounded transition-colors">
                   <div className="flex gap-3 items-center">
-                      <div className={`p-2 rounded-full ${item.type === 'trip' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                        {item.type === 'trip' ? <Car size={14} /> : <DollarSign size={14} />}
+                      <div className={`p-2 rounded-full ${item.recordType === 'trip' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                        {item.recordType === 'trip' ? <Car size={14} /> : <DollarSign size={14} />}
                       </div>
                       <div>
-                        <p className="text-white font-medium">{item.type === 'trip' ? 'Trip Logged' : item.category}</p>
-                        <p className="text-slate-500 text-xs">{item.date}</p>
+                        <p className="text-white font-medium">{item.recordType === 'trip' ? 'Trip Logged' : item.category}</p>
+                        <p className="text-slate-500 text-xs">{item.date} • {item.recordType === 'trip' ? item.type : item.vendor || 'No Vendor'}</p>
                       </div>
                   </div>
-                  <span className="font-bold text-slate-300">{item.type === 'trip' ? `${item.distance} km` : `₹${item.amount}`}</span>
+                  <span className="font-bold text-slate-300">{item.recordType === 'trip' ? `${item.distance} km` : `₹${item.amount}`}</span>
                 </div>
               ))}
               {trips.length === 0 && expenses.length === 0 && <p className="text-slate-500 text-sm italic">No activity yet. Start by logging a trip!</p>}
@@ -470,60 +527,23 @@ export default function AutologApp() {
     </div>
   );
 
-  const renderWarningLights = () => (
-    <div className="animate-in fade-in space-y-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-white mb-2">Dashboard Warning Lights</h2>
-        <p className="text-slate-400 text-sm">A quick reference guide to understand what your car is telling you.</p>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {WARNING_LIGHTS_DATA.map(light => <WarningLightCard key={light.id} light={light} />)}
-      </div>
-    </div>
-  );
-
-  const renderMaintenance = () => (
-    <div className="animate-in fade-in space-y-6">
-      <h2 className="text-2xl font-bold text-white">Maintenance Checklist</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {['Daily', 'Monthly', 'Yearly'].map(freq => (
-           <Card key={freq} className="p-0 overflow-hidden h-fit">
-              <div className="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center backdrop-blur-sm">
-                <h3 className="font-bold text-white">{freq} Checks</h3>
-                <span className="text-xs bg-slate-900 px-2 py-1 rounded text-slate-400">
-                  {tasks.filter(t => MAINTENANCE_TASKS.find(def => def.id === t.id)?.frequency === freq && t.status === 'ok').length} / 
-                  {MAINTENANCE_TASKS.filter(def => def.frequency === freq).length}
-                </span>
-              </div>
-              <div className="divide-y divide-slate-800">
-                {MAINTENANCE_TASKS.filter(def => def.frequency === freq).map(def => {
-                   const state = tasks.find(t => t.id === def.id);
-                   return (
-                     <div key={def.id} className="p-4 flex gap-3 hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => state && toggleTask(state.id)}>
-                       <div className={cn("mt-1 w-5 h-5 rounded border flex items-center justify-center shrink-0", 
-                          state?.status === 'ok' ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600'
-                       )}>
-                         {state?.status === 'ok' && <CheckCircle size={12} className="text-white" />}
-                       </div>
-                       <div>
-                         <p className={cn("text-sm font-medium", state?.status === 'ok' ? "text-slate-500 line-through" : "text-slate-200")}>{def.label}</p>
-                         <p className="text-xs text-slate-500 mt-1">{def.category}</p>
-                       </div>
-                     </div>
-                   );
-                })}
-              </div>
-           </Card>
-        ))}
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30 flex">
       
-      {/* Auth Modal (Overlay) */}
+      {/* Modals */}
+      <AddTripModal 
+        isOpen={isTripModalOpen} 
+        onClose={() => setIsTripModalOpen(false)} 
+        onSave={handleSaveTrip} 
+        lastOdometer={lastOdometer}
+      />
+      <AddExpenseModal 
+        isOpen={isExpenseModalOpen} 
+        onClose={() => setIsExpenseModalOpen(false)} 
+        onSave={handleSaveExpense} 
+      />
+
+      {/* Auth Modal */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
           <Card className="w-full max-w-md p-6 relative">
@@ -540,8 +560,7 @@ export default function AutologApp() {
             
             <form className="space-y-3" onSubmit={(e) => {
                e.preventDefault();
-               // Simplified login for demo
-               const user = { id: generateId(), name: 'User', email: 'user@demo.com', mobile: '9999999999', role: 'user', isPro: false } as UserAccount;
+               const user = { id: generateId(), name: 'Demo User', email: 'user@demo.com', mobile: '9999999999', role: 'user', isPro: false } as UserAccount;
                setCurrentUser(user);
                localStorage.setItem('autolog_current_user', JSON.stringify(user));
                setShowAuthModal(false);
@@ -550,9 +569,40 @@ export default function AutologApp() {
                <Input label="Password" type="password" placeholder="Enter Password" required />
                <Button type="submit" className="w-full">Sign In / Register</Button>
             </form>
-            <p className="text-xs text-center text-slate-500 mt-4">By continuing, you agree to our Terms of Service.</p>
           </Card>
         </div>
+      )}
+
+      {/* Pro Modal */}
+      {showProModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+              <Card className="w-full max-w-md p-0 overflow-hidden border-purple-500/30">
+                  <div className="bg-gradient-to-br from-purple-900 to-indigo-900 p-8 text-center">
+                      <Shield className="w-16 h-16 text-white mx-auto mb-4 opacity-90" strokeWidth={1.5} />
+                      <h2 className="text-2xl font-bold text-white mb-2">Upgrade to PRO</h2>
+                      <p className="text-purple-200 text-sm">Unlock Cloud Backup, PDF Exports & More</p>
+                  </div>
+                  <div className="p-8 space-y-6">
+                      <div className="space-y-3">
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Cloud Data Backup</div>
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Export Reports (PDF/CSV)</div>
+                          <div className="flex gap-3 items-center text-slate-300"><CheckCircle size={18} className="text-purple-400"/> Multiple Vehicle Profiles</div>
+                      </div>
+                      
+                      <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
+                          <div>
+                              <p className="text-sm text-slate-500">Yearly Plan</p>
+                              <p className="text-2xl font-bold text-white">₹499 <span className="text-sm font-normal text-slate-500">/year</span></p>
+                          </div>
+                      </div>
+                      
+                      <Button onClick={handleGoPro} variant="pro" className="w-full py-3">
+                          Pay Now (Secure)
+                      </Button>
+                      <button onClick={() => setShowProModal(false)} className="w-full text-center text-sm text-slate-500 hover:text-slate-300 mt-2">No thanks, I'll stay on free plan</button>
+                  </div>
+              </Card>
+          </div>
       )}
 
       {/* Sidebar */}
@@ -570,6 +620,20 @@ export default function AutologApp() {
         </div>
         
         <div className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {!currentUser?.isPro && (
+            <div 
+                onClick={() => setShowProModal(true)}
+                className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-900/50 to-indigo-900/50 border border-purple-500/30 cursor-pointer group hover:border-purple-500/50 transition-all"
+            >
+                <div className="flex items-center gap-2 mb-2">
+                    <Shield size={16} className="text-purple-400" />
+                    <span className="font-bold text-white text-sm">Go PRO</span>
+                </div>
+                <p className="text-xs text-purple-200 mb-2">Unlock cloud sync & reports.</p>
+                <div className="text-xs font-bold text-white bg-purple-600 px-2 py-1 rounded inline-block">Upgrade</div>
+            </div>
+          )}
+
           <div className="text-xs font-bold text-slate-600 uppercase tracking-wider px-4 mb-2 mt-4">Menu</div>
           <NavButton id="dashboard" icon={LayoutDashboard} label="Dashboard" active={activeTab} set={setActiveTab} />
           <NavButton id="logs" icon={FileText} label="Trip Logs" active={activeTab} set={setActiveTab} />
@@ -583,11 +647,15 @@ export default function AutologApp() {
           {currentUser ? (
             <div className="bg-slate-800/50 rounded-lg p-3">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white relative">
                   {currentUser.name.charAt(0)}
+                  {currentUser.isPro && <div className="absolute -bottom-1 -right-1 bg-purple-500 rounded-full p-0.5 border-2 border-slate-900"><Shield size={8} fill="currentColor" className="text-white"/></div>}
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
+                  <div className="flex items-center gap-1">
+                      <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
+                      {currentUser.isPro && <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1 rounded border border-purple-500/20">PRO</span>}
+                  </div>
                   <p className="text-xs text-slate-500 truncate">{currentUser.mobile}</p>
                 </div>
               </div>
@@ -612,11 +680,66 @@ export default function AutologApp() {
         </div>
 
         {activeTab === 'dashboard' && renderDashboard()}
-        {activeTab === 'warnings' && renderWarningLights()}
-        {activeTab === 'maintenance' && renderMaintenance()}
+        
+        {/* Other Tabs with Warning Lights Component Inline for brevity */}
+        {activeTab === 'warnings' && (
+            <div className="animate-in fade-in space-y-6">
+                <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-white mb-2">Dashboard Warning Lights</h2>
+                    <p className="text-slate-400 text-sm">Quick reference guide for dashboard symbols.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {WARNING_LIGHTS_DATA.map(light => <WarningLightCard key={light.id} light={light} />)}
+                </div>
+            </div>
+        )}
+
+        {/* Maintenance Tab */}
+        {activeTab === 'maintenance' && (
+            <div className="animate-in fade-in space-y-6">
+            <h2 className="text-2xl font-bold text-white">Maintenance Checklist</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {['Daily', 'Monthly', 'Yearly'].map(freq => (
+                <Card key={freq} className="p-0 overflow-hidden h-fit">
+                    <div className="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center backdrop-blur-sm">
+                        <h3 className="font-bold text-white">{freq} Checks</h3>
+                        <span className="text-xs bg-slate-900 px-2 py-1 rounded text-slate-400">
+                        {tasks.filter(t => MAINTENANCE_TASKS.find(def => def.id === t.id)?.frequency === freq && t.status === 'ok').length} / 
+                        {MAINTENANCE_TASKS.filter(def => def.frequency === freq).length}
+                        </span>
+                    </div>
+                    <div className="divide-y divide-slate-800">
+                        {MAINTENANCE_TASKS.filter(def => def.frequency === freq).map(def => {
+                        const state = tasks.find(t => t.id === def.id);
+                        return (
+                            <div key={def.id} className="p-4 flex gap-3 hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => state && toggleTask(state.id)}>
+                            <div className={cn("mt-1 w-5 h-5 rounded border flex items-center justify-center shrink-0", 
+                                state?.status === 'ok' ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600'
+                            )}>
+                                {state?.status === 'ok' && <CheckCircle size={12} className="text-white" />}
+                            </div>
+                            <div>
+                                <p className={cn("text-sm font-medium", state?.status === 'ok' ? "text-slate-500 line-through" : "text-slate-200")}>{def.label}</p>
+                                <p className="text-xs text-slate-500 mt-1">{def.category}</p>
+                            </div>
+                            </div>
+                        );
+                        })}
+                    </div>
+                </Card>
+                ))}
+            </div>
+            </div>
+        )}
+
         {activeTab === 'logs' && (
           <div className="space-y-4 animate-in fade-in">
-             <h2 className="text-2xl font-bold text-white">Trip Logs</h2>
+             <div className="flex justify-between items-center">
+                 <h2 className="text-2xl font-bold text-white">Trip Logs</h2>
+                 <Button onClick={() => requireAuth(() => setIsTripModalOpen(true))}>
+                     <Plus size={16} /> New Trip
+                 </Button>
+             </div>
              <div className="overflow-x-auto rounded-xl border border-slate-800">
                <table className="w-full text-left text-sm text-slate-300">
                  <thead className="bg-slate-900 text-slate-400 font-bold uppercase text-xs">
@@ -624,6 +747,7 @@ export default function AutologApp() {
                      <th className="px-4 py-3">Date</th>
                      <th className="px-4 py-3">Type</th>
                      <th className="px-4 py-3">Route/Notes</th>
+                     <th className="px-4 py-3">Odometer</th>
                      <th className="px-4 py-3 text-right">Distance</th>
                    </tr>
                  </thead>
@@ -632,25 +756,33 @@ export default function AutologApp() {
                      <tr key={t.id}>
                        <td className="px-4 py-3">{t.date}</td>
                        <td className="px-4 py-3"><span className="bg-slate-800 px-2 py-1 rounded text-xs">{t.type}</span></td>
-                       <td className="px-4 py-3">{t.notes || '-'}</td>
+                       <td className="px-4 py-3 max-w-xs truncate">{t.notes || '-'}</td>
+                       <td className="px-4 py-3 font-mono text-slate-500">{t.startOdometer} - {t.endOdometer}</td>
                        <td className="px-4 py-3 text-right text-white font-bold">{t.distance} km</td>
                      </tr>
                    ))}
-                   {trips.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No trips logged yet.</td></tr>}
+                   {trips.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No trips logged yet.</td></tr>}
                  </tbody>
                </table>
              </div>
           </div>
         )}
+
         {activeTab === 'expenses' && (
           <div className="space-y-4 animate-in fade-in">
-             <h2 className="text-2xl font-bold text-white">Expense History</h2>
+             <div className="flex justify-between items-center">
+                 <h2 className="text-2xl font-bold text-white">Expense History</h2>
+                 <Button onClick={() => requireAuth(() => setIsExpenseModalOpen(true))}>
+                     <Plus size={16} /> New Expense
+                 </Button>
+             </div>
              <div className="overflow-x-auto rounded-xl border border-slate-800">
                <table className="w-full text-left text-sm text-slate-300">
                  <thead className="bg-slate-900 text-slate-400 font-bold uppercase text-xs">
                    <tr>
                      <th className="px-4 py-3">Date</th>
                      <th className="px-4 py-3">Category</th>
+                     <th className="px-4 py-3">Vendor</th>
                      <th className="px-4 py-3">Note</th>
                      <th className="px-4 py-3 text-right">Amount</th>
                    </tr>
@@ -660,24 +792,43 @@ export default function AutologApp() {
                      <tr key={e.id}>
                        <td className="px-4 py-3">{e.date}</td>
                        <td className="px-4 py-3"><span className="text-blue-400">{e.category}</span></td>
-                       <td className="px-4 py-3">{e.notes || '-'}</td>
+                       <td className="px-4 py-3">{e.vendor || '-'}</td>
+                       <td className="px-4 py-3 max-w-xs truncate">{e.notes || '-'}</td>
                        <td className="px-4 py-3 text-right text-emerald-400 font-bold">₹{e.amount}</td>
                      </tr>
                    ))}
-                   {expenses.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No expenses yet.</td></tr>}
+                   {expenses.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No expenses yet.</td></tr>}
                  </tbody>
                </table>
              </div>
           </div>
         )}
+
         {activeTab === 'profile' && (
-          <Card className="p-8 max-w-xl mx-auto animate-in fade-in">
-             <h2 className="text-2xl font-bold text-white mb-6">Vehicle Profile</h2>
-             <div className="space-y-4">
-               <Input label="Make & Model" value={profile.make} onChange={(e:any) => setProfile({...profile, make: e.target.value})} disabled={!currentUser} />
-               <Input label="Registration Number" value={profile.regNumber} onChange={(e:any) => setProfile({...profile, regNumber: e.target.value})} disabled={!currentUser} />
-               {!currentUser && <p className="text-sm text-yellow-500 bg-yellow-500/10 p-2 rounded">Sign in to edit your profile.</p>}
-               {currentUser && <Button onClick={saveUserData}>Save Profile</Button>}
+          <Card className="p-8 max-w-3xl mx-auto animate-in fade-in">
+             <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                    <Car className="text-blue-500" /> Vehicle Profile
+                </h2>
+                {currentUser && <Button onClick={saveUserData}>Save Changes</Button>}
+             </div>
+             
+             {!currentUser && <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-200 p-4 rounded-lg mb-6 flex items-start gap-3">
+                 <Info className="shrink-0" />
+                 <div>
+                     <p className="font-bold">Guest Mode Active</p>
+                     <p className="text-sm opacity-80">Sign in to securely save your vehicle details and history to your account.</p>
+                 </div>
+             </div>}
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <Input label="Make (Brand)" placeholder="e.g. Toyota" value={profile.make} onChange={(e:any) => setProfile({...profile, make: e.target.value})} disabled={!currentUser} />
+               <Input label="Model" placeholder="e.g. Fortuner" value={profile.model} onChange={(e:any) => setProfile({...profile, model: e.target.value})} disabled={!currentUser} />
+               <Input label="Variant / Trim" placeholder="e.g. Legender 4x4" value={profile.variant} onChange={(e:any) => setProfile({...profile, variant: e.target.value})} disabled={!currentUser} />
+               <Input label="Registration Number" placeholder="KA-01-XX-0000" value={profile.regNumber} onChange={(e:any) => setProfile({...profile, regNumber: e.target.value})} disabled={!currentUser} />
+               <Input label="VIN / Chassis No." placeholder="Optional" value={profile.vin} onChange={(e:any) => setProfile({...profile, vin: e.target.value})} disabled={!currentUser} />
+               <Select label="Fuel Type" options={['Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG']} value={profile.fuelType} onChange={(e:any) => setProfile({...profile, fuelType: e.target.value})} disabled={!currentUser} />
+               <Input label="Purchase Date" type="date" value={profile.purchaseDate} onChange={(e:any) => setProfile({...profile, purchaseDate: e.target.value})} disabled={!currentUser} />
              </div>
           </Card>
         )}
