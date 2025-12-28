@@ -10,7 +10,7 @@ import {
     ClipboardCheck, TrendingUp, History, FileWarning, ClipboardList, Check,
     MessageSquare, ShoppingBag, ExternalLink, ThumbsUp, MessageCircle, BarChart3,
     ArrowLeft, Send, Bike, Truck, CalendarCheck, Menu, FileDown, Share2, Printer,
-    Sun, Moon, Crown, CreditCard, Sparkles, CircleDashed, Warehouse
+    Sun, Moon, Crown, CreditCard, Sparkles, CircleDashed, Warehouse, ArrowDownLeft, ArrowUpRight, CalendarRange, ChevronLeft
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -154,6 +154,22 @@ type FamilyMember = { id: string; name: string; role: 'Admin' | 'Driver' | 'View
 type Document = { id: string; vehicleId: string; type: 'Insurance' | 'PUC' | 'RC' | 'FastTag'; provider: string; number: string; expiryDate: string; fileUrl?: string; };
 type Accident = { id: string; vehicleId: string; date: string; location: string; description: string; damageType: 'Minor' | 'Major' | 'Total Loss'; insuranceClaimed: boolean; cost: number; status: 'Pending' | 'Fixed'; photos: number; };
 type Booking = { id: string; vehicleId: string; serviceType: string; date: string; time: string; garage: string; status: 'Pending' | 'Confirmed' | 'Completed'; notes: string; };
+
+// E-commerce Types
+type CartItem = { id: number; name: string; price: number; category: string; image: string; quantity: number; };
+type Address = { street: string; city: string; state: string; zip: string; };
+type Order = {
+    id: string;
+    items: CartItem[];
+    total: number;
+    walletUsed: number;
+    finalAmount: number;
+    address: Address;
+    date: string;
+    status: 'Processing' | 'Shipped' | 'Delivered';
+    deliveryDate: string;
+    discount?: number;
+};
 
 // --- Shared UI Components ---
 
@@ -318,13 +334,22 @@ const OnboardingModal = ({ isOpen, onClose, onComplete }: any) => {
     };
 
     const handlePayment = () => {
+        // Mock payment
         setProcessing(true);
         setTimeout(() => {
-            // Trigger completion directly. The modal will close because parent component 
-            // will detect a user is now logged in.
-            onComplete({ user, vehicle, plan: selectedPlan });
+            setProcessing(false);
+            if (selectedPlan) {
+                // Credit Wallet Points for Plan
+                if (onLogin) onLogin({ credit: selectedPlan.price >= 499 ? 500 : 0 }); // Callback to add wallet balance
+            }
+            onOpenAuth();
+            onClose();
+            // Reset
+            setStep(1);
         }, 2000);
     };
+
+
 
     const ProgressBar = () => (
         <div className="w-full bg-gray-100 h-1.5 mt-0 mb-6">
@@ -432,12 +457,12 @@ const OnboardingModal = ({ isOpen, onClose, onComplete }: any) => {
                     {/* Step 3: Plans */}
                     {step === 3 && (
                         <div className="animate-in slide-in-from-right-8 fade-in duration-300">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:overflow-visible overflow-y-auto max-h-[50vh] pr-2 scrollbar-thin scrollbar-thumb-slate-200">
                                 {ONBOARDING_PLANS.map(p => (
                                     <div key={p.id} onClick={() => setSelectedPlan(p)}
                                         className={cn(
-                                            "relative rounded-2xl p-5 border-2 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between min-h-[220px]",
-                                            selectedPlan?.id === p.id ? "ring-2 ring-offset-2 ring-blue-500 shadow-lg" : "hover:border-blue-200",
+                                            "relative rounded-2xl p-4 md:p-5 border-2 cursor-pointer transition-all duration-300 hover:shadow-xl flex flex-col justify-between min-h-[160px] md:min-h-[220px]",
+                                            selectedPlan?.id === p.id ? "ring-2 ring-offset-2 ring-blue-500 shadow-lg border-blue-500 bg-blue-50/50" : "border-slate-100 bg-white hover:border-blue-200",
                                             p.style
                                         )}>
                                         {p.tag && (
@@ -521,7 +546,13 @@ const OnboardingModal = ({ isOpen, onClose, onComplete }: any) => {
                                         </div>
                                     </div>
 
-                                    <Button variant="success" className="w-full py-4 text-lg font-bold shadow-lg shadow-emerald-200" onClick={handlePayment}>
+                                    <Button variant="success" className="w-full py-4 text-lg font-bold shadow-lg shadow-emerald-200" onClick={() => {
+                                        setProcessing(true);
+                                        setTimeout(() => {
+                                            setProcessing(false);
+                                            onComplete({ user, vehicle, plan: selectedPlan });
+                                        }, 2000);
+                                    }}>
                                         Confirm & Pay ₹{selectedPlan?.price}
                                     </Button>
 
@@ -1262,7 +1293,9 @@ export default function AutologApp() {
     const [accidents, setAccidents] = useState<Accident[]>([]);
     const [marketListings, setMarketListings] = useState<any[]>(FORUM_TOPICS.filter(t => t.type === 'Market'));
     const [discussionListings, setDiscussionListings] = useState<any[]>(FORUM_TOPICS.filter(t => t.type !== 'Market'));
+
     const [bookings, setBookings] = useState<Booking[]>([]);
+    const [maintenanceHistory, setMaintenanceHistory] = useState<{ id: string, taskId: string, date: string, status: 'ok' | 'issue' }[]>([]);
 
     // UI States
     const [modals, setModals] = useState({ trip: false, expense: false, scan: false, pro: false, doc: false, accident: false, resell: false, addVehicle: false, addFamily: false });
@@ -1273,6 +1306,21 @@ export default function AutologApp() {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [chartPeriod, setChartPeriod] = useState<'week' | 'month' | 'year'>('month');
     const [showWalkthrough, setShowWalkthrough] = useState(false);
+
+    // E-commerce State
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [walletBalance, setWalletBalance] = useState(0); // 1 Point = 1 Rupee
+    const [useWallet, setUseWallet] = useState(false);
+    const [showCheckout, setShowCheckout] = useState(false);
+    const [checkoutStep, setCheckoutStep] = useState(1); // 1: Address, 2: Payment, 3: Success
+    const [deliveryAddress, setDeliveryAddress] = useState<Address>({ street: '', city: '', state: '', zip: '' });
+
+
+
+    // Calendar State
+    const [calendarDate, setCalendarDate] = useState(new Date());
+    const [calendarSelectedDate, setCalendarSelectedDate] = useState<string | null>(new Date().toISOString().split('T')[0]);
 
     // View States for Combined Tabs
     const [logViewMode, setLogViewMode] = useState<'trips' | 'expenses'>('trips');
@@ -1287,6 +1335,11 @@ export default function AutologApp() {
             localStorage.setItem('autolog_walkthrough_seen', 'true');
         }
     }, [user]);
+
+    // Reset wallet usage when checkout closes
+    useEffect(() => {
+        if (!showCheckout) setUseWallet(false);
+    }, [showCheckout]);
 
     // CHANGE 2: Force remove 'dark' class on mount
     useEffect(() => {
@@ -1496,7 +1549,10 @@ export default function AutologApp() {
 
         // 3. Close Modal
         setShowOnboarding(false);
-        alert(`Welcome ${newUser.name}! Your ${data.plan.name} is now active.`);
+        const bonusPoints = data.plan?.price || 0; // 100% of Plan Price
+        if (bonusPoints > 0) setWalletBalance(prev => prev + bonusPoints);
+
+        alert(`Welcome ${newUser.name}! Your ${data.plan?.name} is now active.${bonusPoints > 0 ? ` You've earned ${bonusPoints} wallet points!` : ''}`);
     };
 
     // NEW Handlers for Garage & Family Management
@@ -1594,6 +1650,10 @@ export default function AutologApp() {
                             <Wrench className="text-orange-500" />
                             <span className="text-sm font-bold text-slate-900">Maintenance</span>
                         </button>
+                        <button onClick={() => setActiveTab('calendar')} className="bg-white p-4 rounded-xl border border-gray-200 flex flex-col items-center gap-2 hover:border-indigo-500 transition-colors shadow-sm">
+                            <CalendarRange className="text-indigo-500" />
+                            <span className="text-sm font-bold text-slate-900">Calendar</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1607,6 +1667,10 @@ export default function AutologApp() {
                         <button onClick={() => setActiveTab('shop')} className="bg-white p-4 rounded-xl border border-gray-200 flex flex-col items-center gap-2 hover:border-pink-500 transition-colors shadow-sm">
                             <ShoppingBag className="text-pink-500" />
                             <span className="text-sm font-bold text-slate-900">Shop</span>
+                        </button>
+                        <button onClick={() => setActiveTab('wallet')} className="bg-white p-4 rounded-xl border border-gray-200 flex flex-col items-center gap-2 hover:border-amber-500 transition-colors shadow-sm">
+                            <Sparkles className="text-amber-500" />
+                            <span className="text-sm font-bold text-slate-900">Wallet</span>
                         </button>
                     </div>
                 </div>
@@ -1628,7 +1692,7 @@ export default function AutologApp() {
 
             <div>
                 <p className="text-xs font-bold text-slate-600 uppercase px-2 mb-2">Account</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                     <button onClick={() => setActiveTab('account')} className="bg-white p-4 rounded-xl border border-gray-200 flex flex-col items-center gap-2 hover:border-slate-500 transition-colors shadow-sm">
                         <Settings className="text-slate-500" />
                         <span className="text-sm font-bold text-slate-900">Settings</span>
@@ -1713,7 +1777,15 @@ export default function AutologApp() {
                                             {state?.status === 'issue' && <p className="text-xs text-red-500 mt-1">Issue: {state.issueDetails}</p>}
                                         </div>
                                         <div className="flex gap-2">
-                                            <button title="Mark OK" onClick={() => setTasks((tasks: any) => tasks.map((t: any) => t.id === def.id ? { ...t, status: t.status === 'ok' ? 'pending' : 'ok', lastChecked: new Date().toISOString().split('T')[0] } : t))} className={cn("p-1 rounded border", state?.status === 'ok' ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-300 text-slate-400')}><CheckCircle size={16} /></button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button title="Mark OK" onClick={() => {
+                                                const today = new Date().toISOString().split('T')[0];
+                                                setTasks((prevTasks: any) => prevTasks.map((t: any) => t.id === def.id ? { ...t, status: t.status === 'ok' ? 'pending' : 'ok', lastChecked: today } : t));
+                                                if (state?.status !== 'ok') {
+                                                    setMaintenanceHistory([...maintenanceHistory, { id: generateId(), taskId: def.id, date: today, status: 'ok' }]);
+                                                }
+                                            }} className={cn("p-1 rounded border", state?.status === 'ok' ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-300 text-slate-400')}><CheckCircle size={16} /></button>
                                             <button title="Report Issue" onClick={() => setIssueTarget({ id: def.id, name: def.label })} className={cn("p-1 rounded border", state?.status === 'issue' ? 'bg-red-600 border-red-500 text-white' : 'border-gray-300 text-slate-400')}><AlertOctagon size={16} /></button>
                                         </div>
                                     </div>
@@ -1725,6 +1797,124 @@ export default function AutologApp() {
             </div>
         </div>
     );
+
+    const renderCalendar = () => {
+        const year = calendarDate.getFullYear();
+        const month = calendarDate.getMonth();
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDay = firstDay.getDay(); // 0 is Sunday
+
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+        const prevMonth = () => setCalendarDate(new Date(year, month - 1, 1));
+        const nextMonth = () => setCalendarDate(new Date(year, month + 1, 1));
+
+        const getEventsForDate = (day: number) => {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const historyEvents = maintenanceHistory.filter(h => h.date === dateStr).map(h => ({ ...h, type: 'history' }));
+            const bookingEvents = bookings.filter(b => b.date === dateStr).map(b => ({ ...b, type: 'booking' }));
+            return [...historyEvents, ...bookingEvents];
+        };
+
+        const selectedEvents = calendarSelectedDate ? [
+            ...maintenanceHistory.filter(h => h.date === calendarSelectedDate).map(h => ({ ...h, type: 'history' })),
+            ...bookings.filter(b => b.date === calendarSelectedDate).map(b => ({ ...b, type: 'booking' }))
+        ] : [];
+
+        return (
+            <div className="animate-in fade-in space-y-6 pb-20 md:pb-0">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl md:text-2xl font-bold text-slate-900">Maintenance Calendar</h2>
+                    <Button variant="secondary" onClick={() => downloadCSV(maintenanceHistory.map(h => ({ ...h, taskName: MAINTENANCE_TASKS.find(t => t.id === h.taskId)?.label })), 'maintenance_history')}><Download size={16} /> Export History</Button>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    {/* Header */}
+                    <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
+                        <button onClick={prevMonth}><ChevronLeft /></button>
+                        <h3 className="font-bold text-lg">{monthNames[month]} {year}</h3>
+                        <button onClick={nextMonth}><ChevronRight /></button>
+                    </div>
+
+                    {/* Days Grid */}
+                    <div className="p-4">
+                        <div className="grid grid-cols-7 text-center mb-2">
+                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
+                                <div key={d} className="text-xs font-bold text-slate-400 py-2">{d}</div>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-7 gap-1">
+                            {Array.from({ length: startingDay }).map((_, i) => <div key={`empty-${i}`} className="aspect-square"></div>)}
+                            {Array.from({ length: daysInMonth }).map((_, i) => {
+                                const day = i + 1;
+                                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                const events = getEventsForDate(day);
+                                const isSelected = calendarSelectedDate === dateStr;
+                                const hasEvents = events.length > 0;
+
+                                return (
+                                    <button
+                                        key={day}
+                                        onClick={() => setCalendarSelectedDate(dateStr)}
+                                        className={cn(
+                                            "aspect-square rounded-lg flex flex-col items-center justify-center relative transition-all text-sm font-medium",
+                                            isSelected ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" : "text-slate-700 hover:bg-gray-100",
+                                            hasEvents && !isSelected && "font-bold"
+                                        )}
+                                    >
+                                        {day}
+                                        {hasEvents && (
+                                            <div className={cn("w-1.5 h-1.5 rounded-full mt-1", isSelected ? "bg-white" : "bg-emerald-500")}></div>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Selected Date Details */}
+                {calendarSelectedDate && (
+                    <Card className="p-4 animate-in slide-in-from-bottom-4">
+                        <h3 className="font-bold text-slate-900 border-b border-gray-100 pb-2 mb-3">Activity for {new Date(calendarSelectedDate).toLocaleDateString()}</h3>
+                        {selectedEvents.length > 0 ? (
+                            <div className="space-y-3">
+                                {selectedEvents.map((event: any, i) => {
+                                    if (event.type === 'history') {
+                                        const taskDef = MAINTENANCE_TASKS.find(t => t.id === event.taskId);
+                                        return (
+                                            <div key={`hist-${i}`} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100">
+                                                <div className="bg-emerald-100 text-emerald-600 p-1.5 rounded-full"><CheckCircle size={14} /></div>
+                                                <div>
+                                                    <p className="font-bold text-slate-800 text-sm">{taskDef?.label || 'Unknown Task'}</p>
+                                                    <p className="text-[10px] text-slate-500 uppercase">{taskDef?.category || 'Maintenance'}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    } else {
+                                        return (
+                                            <div key={`book-${i}`} className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                                                <div className="bg-blue-100 text-blue-600 p-1.5 rounded-full"><CalendarCheck size={14} /></div>
+                                                <div>
+                                                    <p className="font-bold text-slate-800 text-sm">{event.serviceType}</p>
+                                                    <p className="text-[10px] text-slate-500 uppercase">Scheduled at {event.garage}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                })}
+                            </div>
+                        ) : (
+                            <p className="text-slate-500 text-sm text-center py-4">No maintenance activity recorded for this date.</p>
+                        )}
+                    </Card>
+                )}
+            </div>
+        );
+    };
 
     const renderDashboard = () => {
         const recentActivities = [
@@ -1783,8 +1973,24 @@ export default function AutologApp() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <StatCard onClick={() => setActiveTab('logs')} label="Odometer" value={`${lastOdometer} km`} icon={<Gauge size={18} />} color="blue" />
                     <StatCard onClick={() => setActiveTab('expenses')} label="Total Spent" value={`₹${totalSpent.toLocaleString()}`} icon={<DollarSign size={18} />} color="emerald" />
+                    <StatCard onClick={() => setActiveTab('wallet')} label="Wallet" value={`${walletBalance}`} icon={<Sparkles size={18} />} color="amber" />
                     <StatCard onClick={() => setActiveTab('docs')} label="Docs Active" value={`${currentDocs.length}`} icon={<Shield size={18} />} color="purple" />
                     <StatCard onClick={() => setActiveTab('manage_garage')} label="Family" value={family.length + 1} icon={<Users size={18} />} color="slate" />
+
+                    {/* Mobile Service Card to fill gap */}
+                    {servicePrediction && (
+                        <div className="md:hidden bg-blue-600 rounded-xl p-3 text-white shadow-lg shadow-blue-900/20 relative overflow-hidden flex flex-col justify-between h-full min-h-[100px]" onClick={() => setActiveTab('book_service')}>
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none"></div>
+                            <div>
+                                <h3 className="flex items-center gap-1 text-[10px] font-bold uppercase mb-1"><Wrench size={10} /> Service Due</h3>
+                                <p className="text-xl font-black">{servicePrediction.daysRemaining > 0 ? `${servicePrediction.daysRemaining} Days` : 'Now!'}</p>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between">
+                                <span className="text-[10px] text-blue-100">{servicePrediction.nextOdo} km</span>
+                                <div className="bg-white/20 p-1.5 rounded-lg"><ChevronRight size={14} /></div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Main Content Grid */}
@@ -1883,7 +2089,7 @@ export default function AutologApp() {
 
                         {/* Service Prediction */}
                         {servicePrediction && (
-                            <div className="bg-blue-600 rounded-xl p-4 text-white shadow-lg shadow-blue-900/20 relative overflow-hidden">
+                            <div className="hidden md:block bg-blue-600 rounded-xl p-4 text-white shadow-lg shadow-blue-900/20 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
                                 <h3 className="flex items-center gap-2 text-xs font-bold uppercase disabled:opacity-70 mb-1"><Wrench size={12} /> Next Service Due</h3>
                                 <p className="text-2xl font-black mb-1">{servicePrediction.daysRemaining > 0 ? `in ${servicePrediction.daysRemaining} Days` : 'Overdue!'}</p>
@@ -1997,13 +2203,26 @@ export default function AutologApp() {
         <div className="animate-in fade-in space-y-6 pb-20 md:pb-0">
             <div className="bg-slate-900 text-white p-6 rounded-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 rounded-full blur-3xl opacity-20 -mr-10 -mt-10"></div>
-                <div className="flex items-center gap-4 relative z-10">
-                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-2xl font-bold border-4 border-slate-800">
-                        {user.name[0]}
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4 relative z-10 w-full justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-2xl font-bold border-4 border-slate-800 shrink-0">
+                            {user.name[0]}
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold break-all">{user.name}</h2>
+                            <p className="text-blue-300 text-sm break-all">{user.email}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-2xl font-bold">{user.name}</h2>
-                        <p className="text-blue-300 text-sm">{user.email}</p>
+                    {/* Wallet Widget */}
+                    <div className="w-full md:w-auto bg-slate-800/80 p-3 rounded-xl border border-slate-700 backdrop-blur-sm flex flex-col md:items-end gap-2">
+                        <div className="flex justify-between items-center w-full md:w-auto gap-4">
+                            <div className="text-left md:text-right">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Wallet Balance</p>
+                                <h3 className="text-xl font-black text-amber-400 flex items-center md:justify-end gap-1"><Sparkles size={16} /> {walletBalance}</h3>
+                            </div>
+                            <Button size="sm" variant="gold" className="px-3 py-1 text-xs" onClick={() => setActiveTab('wallet')}>Open Wallet</Button>
+                        </div>
+                        <button onClick={() => { setActiveTab('shop'); setCommViewMode('shop'); }} className="text-[10px] text-amber-500 hover:text-amber-400 font-bold underline flex items-center justify-end gap-1">Redeem at Shop <ArrowUpRight size={10} /></button>
                     </div>
                 </div>
             </div>
@@ -2014,8 +2233,8 @@ export default function AutologApp() {
                 <div className="space-y-4">
                     <p className="text-xs font-bold text-slate-500 uppercase border-b border-gray-100 pb-2">Personal Information</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input label="Full Name" value={user.name} onChange={() => { }} />
-                        <Input label="Mobile Number" value={user.mobile || ''} placeholder="Add Mobile" onChange={() => { }} />
+                        <Input label="Full Name" value={user.name} onChange={(e: any) => setUser({ ...user, name: e.target.value })} />
+                        <Input label="Mobile Number" value={user.mobile || ''} placeholder="Add Mobile" onChange={(e: any) => setUser({ ...user, mobile: e.target.value })} />
                         <Input label="Email Address" value={user.email} disabled />
                     </div>
 
@@ -2034,7 +2253,7 @@ export default function AutologApp() {
 
                 <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end gap-4">
                     <Button variant="secondary" onClick={() => setUser(null)} className="text-red-500 hover:bg-red-50 hover:text-red-600"><LogOut size={16} /> Log Out</Button>
-                    <Button>Save Changes</Button>
+                    <Button onClick={() => { localStorage.setItem('autolog_user', JSON.stringify(user)); alert("Settings Saved!"); }}>Save Changes</Button>
                 </div>
             </Card>
         </div>
@@ -2078,32 +2297,251 @@ export default function AutologApp() {
         </div>
     );
 
-    const renderShop = () => (
-        <div className="animate-in fade-in space-y-6 pb-20 md:pb-0">
-            <div className="flex justify-between items-center">
-                <div><h2 className="text-2xl font-bold text-slate-900">Accessories Shop</h2><p className="text-slate-500 text-sm">Curated gadgets for your {currentVehicle?.model}</p></div>
-                <ShoppingBag className="text-purple-500" />
-            </div>
+    const renderShop = () => {
+        const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+        const maxRedeemable = Math.floor(cartTotal * 0.10); // Max 10%
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {ACCESSORIES_DATA.map(item => (
-                    <Card key={item.id} className="p-0 overflow-hidden group hover:border-purple-500/50 transition-all">
-                        <div className="aspect-square bg-white p-4 flex items-center justify-center relative">
-                            <img src={item.image} alt={item.name} className="object-contain w-full h-full group-hover:scale-110 transition-transform duration-300" />
-                            <div className="absolute top-2 right-2 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded uppercase opacity-0 group-hover:opacity-100 transition-opacity">{item.category}</div>
-                        </div>
-                        <div className="p-3">
-                            <h3 className="text-sm font-bold text-slate-900 truncate mb-1">{item.name}</h3>
-                            <div className="flex justify-between items-center">
-                                <span className="text-emerald-500 font-bold">₹{item.price.toLocaleString()}</span>
-                                <button onClick={() => alert("Redirecting to Amazon...")} className="bg-gray-100 hover:bg-purple-600 hover:text-white text-slate-600 p-1.5 rounded-lg transition-colors"><ExternalLink size={14} /></button>
+        const finalAmount = useWallet ? cartTotal - Math.min(walletBalance, maxRedeemable) : cartTotal;
+
+        const addToCart = (product: any) => {
+            const existing = cart.find(c => c.id === product.id);
+            if (existing) setCart(cart.map(c => c.id === product.id ? { ...c, quantity: c.quantity + 1 } : c));
+            else setCart([...cart, { ...product, quantity: 1 }]);
+        };
+
+        const removeFromCart = (id: number) => {
+            setCart(cart.filter(c => c.id !== id));
+        };
+
+        const handlePlaceOrder = () => {
+            const discount = useWallet ? Math.min(walletBalance, maxRedeemable) : 0;
+            const newOrder: Order = {
+                id: Math.floor(100000 + Math.random() * 900000),
+                items: cart,
+                total: cartTotal,
+                discount: discount,
+                finalAmount: cartTotal - discount,
+                date: new Date().toISOString().split('T')[0],
+                status: 'Processing',
+                deliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            };
+            setOrders([newOrder, ...orders]);
+            if (useWallet) setWalletBalance(prev => prev - discount);
+            setCart([]);
+            setCheckoutStep(3);
+        };
+
+        return (
+            <div className="animate-in fade-in space-y-6 pb-20 md:pb-0 relative">
+                <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 sticky top-0 z-10">
+                    <div><h2 className="text-2xl font-bold text-slate-900">Accessories Shop</h2><p className="text-slate-500 text-sm">Curated gadgets for your {currentVehicle?.model}</p></div>
+                    <button onClick={() => { if (cart.length > 0) { setCheckoutStep(1); setShowCheckout(true); } }} className="relative p-2 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">
+                        <ShoppingBag className="text-slate-900" />
+                        {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full animate-bounce">{cart.reduce((a, b) => a + b.quantity, 0)}</span>}
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {ACCESSORIES_DATA.map(item => (
+                        <Card key={item.id} className="p-0 overflow-hidden group hover:border-purple-500/50 transition-all">
+                            <div className="aspect-square bg-white p-4 flex items-center justify-center relative">
+                                <img src={item.image} alt={item.name} className="object-contain w-full h-full group-hover:scale-110 transition-transform duration-300" />
+                                <div className="absolute top-2 right-2 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded uppercase opacity-0 group-hover:opacity-100 transition-opacity">{item.category}</div>
                             </div>
+                            <div className="p-3">
+                                <h3 className="text-sm font-bold text-slate-900 truncate mb-1">{item.name}</h3>
+                                <div className="flex justify-between items-end">
+                                    <div>
+                                        <span className="text-slate-900 font-bold block">₹{item.price.toLocaleString()}</span>
+                                        {walletBalance > 0 && (
+                                            <p className="text-[10px] text-emerald-600 font-bold">
+                                                Or ₹{(item.price * 0.9).toFixed(0)} + Coins
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <Button size="sm" onClick={() => { addToCart(item); alert("Added to cart!"); }} className="h-8 w-8 p-0 rounded-full flex items-center justify-center bg-slate-900 text-white hover:bg-emerald-500"><Plus size={16} /></Button>
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+
+                {/* Checkout Modal */}
+                {
+                    showCheckout && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+                            <Card className="w-full max-w-md p-0 relative overflow-hidden bg-white max-h-[90vh] flex flex-col">
+                                <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                                    <h3 className="font-bold text-slate-900">Checkout</h3>
+                                    <button onClick={() => setShowCheckout(false)}><X size={20} className="text-slate-400" /></button>
+                                </div>
+
+                                <div className="p-6 overflow-y-auto">
+                                    {checkoutStep === 1 && (
+                                        <div className="space-y-4">
+                                            <h4 className="font-bold text-slate-700">Delivery Address</h4>
+                                            <Input label="Street Address" value={deliveryAddress.street} onChange={(e: any) => setDeliveryAddress({ ...deliveryAddress, street: e.target.value })} />
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <Input label="City" value={deliveryAddress.city} onChange={(e: any) => setDeliveryAddress({ ...deliveryAddress, city: e.target.value })} />
+                                                <Input label="Postal Code" value={deliveryAddress.zip} onChange={(e: any) => setDeliveryAddress({ ...deliveryAddress, zip: e.target.value })} />
+                                            </div>
+                                            <Button className="w-full mt-4" disabled={!deliveryAddress.street || !deliveryAddress.zip} onClick={() => setCheckoutStep(2)}>Proceed to Payment</Button>
+
+                                            <div className="mt-6 border-t border-gray-100 pt-4">
+                                                <h4 className="font-bold text-slate-700 mb-2">Order Summary</h4>
+                                                {cart.map(c => (
+                                                    <div key={c.id} className="flex justify-between text-sm py-1 border-b border-gray-50 last:border-0">
+                                                        <span>{c.quantity}x {c.name}</span>
+                                                        <span className="font-mono">₹{c.price * c.quantity}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex justify-between font-bold text-slate-900 mt-2 text-lg">
+                                                    <span>Total</span>
+                                                    <span>₹{cartTotal.toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {checkoutStep === 2 && (
+                                        <div className="space-y-6">
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                <div className="flex justify-between mb-2">
+                                                    <span className="text-slate-500">Order Total</span>
+                                                    <span className="font-bold">₹{cartTotal}</span>
+                                                </div>
+
+                                                {/* Wallet Redemption Logic */}
+                                                <div className="flex items-center justify-between py-3 border-t border-dashed border-slate-300">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="bg-amber-100 text-amber-600 p-1.5 rounded-full"><Sparkles size={14} /></div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-slate-900">Use Wallet Points</p>
+                                                            <p className="text-[10px] text-slate-500">Balance: {walletBalance} | Max Redeem: {maxRedeemable} (10%)</p>
+                                                        </div>
+                                                    </div>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={useWallet}
+                                                        disabled={walletBalance === 0}
+                                                        onChange={(e) => setUseWallet(e.target.checked)}
+                                                        className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                                {useWallet && (
+                                                    <div className="flex justify-between text-emerald-600 text-sm font-bold mb-2">
+                                                        <span>Points Discount</span>
+                                                        <span>- ₹{Math.min(walletBalance, maxRedeemable)}</span>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex justify-between text-xl font-black text-slate-900 border-t border-slate-300 pt-3 mt-2">
+                                                    <span>Payable</span>
+                                                    <span>₹{finalAmount}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <button className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all font-bold text-slate-700">
+                                                    <span className="flex items-center gap-2"><CreditCard size={18} /> Credit / Debit Card</span>
+                                                    <div className="w-4 h-4 rounded-full border border-slate-300"></div>
+                                                </button>
+                                                <button className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all font-bold text-slate-700">
+                                                    <span className="flex items-center gap-2"><Smartphone size={18} /> UPI (GPay / PhonePe)</span>
+                                                    <div className="w-4 h-4 rounded-full border border-slate-300"></div>
+                                                </button>
+                                            </div>
+
+                                            <Button variant="success" className="w-full py-4 text-lg font-bold shadow-lg shadow-emerald-200" onClick={handlePlaceOrder}>
+                                                Pay ₹{finalAmount}
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {checkoutStep === 3 && (
+                                        <div className="text-center py-8 space-y-4 animate-in fade-in zoom-in-50">
+                                            <div className="w-20 h-20 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                                                <CheckCircle size={40} />
+                                            </div>
+                                            <h3 className="text-2xl font-black text-slate-900">Order Placed!</h3>
+                                            <p className="text-slate-500">Your order has been confirmed and will be delivered by <span className="font-bold text-slate-900">{new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}</span>.</p>
+                                            <div className="bg-gray-50 p-4 rounded-xl text-left border border-gray-100 mt-6">
+                                                <p className="text-xs text-slate-500 uppercase font-bold text-center mb-2">Order ID</p>
+                                                <p className="text-center font-mono font-bold text-lg select-all bg-white py-1 rounded border border-gray-200">#{orders[0]?.id}</p>
+                                            </div>
+                                            <Button onClick={() => setShowCheckout(false)} className="w-full">Continue Shopping</Button>
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
                         </div>
-                    </Card>
-                ))}
+                    )
+                }
+            </div >
+        );
+    };
+
+    const renderWallet = () => {
+        // Derive Transactions
+        const serviceEarnings = expenses
+            .filter(e => ['Service & Maintenance', 'Repairs', 'Insurance', 'Tyre Change'].includes(e.category) && Number(e.amount) > 0)
+            .map(e => ({
+                id: `earn-${e.id}`,
+                type: 'credit',
+                title: `Reward: ${e.category}`,
+                date: e.date,
+                amount: Math.floor(Number(e.amount) * 0.10) // 10% Reward
+            }));
+
+        const shopSpendings = orders
+            .filter(o => o.discount > 0)
+            .map(o => ({
+                id: `spend-${o.id}`,
+                type: 'debit',
+                title: `Shop Order #${o.id}`,
+                date: o.date,
+                amount: o.discount // Points Spent
+            }));
+
+        const membershipBonus = user?.isPro ? [{ id: 'bonus', type: 'credit', title: 'Membership Bonus', date: '2025-01-01', amount: user.email === 'demo@autolog.com' ? 0 : 500 }] : [];
+
+        const transactions = [...serviceEarnings, ...shopSpendings, ...membershipBonus]
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return (
+            <div className="animate-in fade-in space-y-6 pb-20 md:pb-0">
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl p-8 text-center relative overflow-hidden shadow-xl">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                    <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-2 relative z-10">Total Balance</p>
+                    <h2 className="text-5xl font-black text-amber-400 flex items-center justify-center gap-2 relative z-10"><Sparkles className="text-amber-500" /> {walletBalance}</h2>
+                    <p className="text-slate-500 text-xs mt-4 relative z-10">Use points to get discounts on accessories.</p>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2"><History size={20} className="text-slate-400" /> Transaction History</h3>
+                    <div className="space-y-4">
+                        {transactions.length === 0 && <p className="text-slate-500 text-center italic">No transactions yet.</p>}
+                        {transactions.map((t: any) => (
+                            <div key={t.id} className="flex justify-between items-center border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                                <div className="flex items-center gap-3">
+                                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", t.type === 'credit' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600")}>
+                                        {t.type === 'credit' ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-900 text-sm">{t.title}</p>
+                                        <p className="text-xs text-slate-400">{t.date}</p>
+                                    </div>
+                                </div>
+                                <span className={cn("font-bold", t.type === 'credit' ? "text-emerald-600" : "text-slate-900")}>
+                                    {t.type === 'credit' ? '+' : '-'}{t.amount}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderResale = () => (
         <div className="animate-in fade-in space-y-6 pb-20 md:pb-0">
@@ -2281,7 +2719,14 @@ export default function AutologApp() {
             }} lastOdometer={lastOdometer} />
             {/* ... other modals ... */}
             <AddExpenseModal isOpen={modals.expense} onClose={() => setModals({ ...modals, expense: false })} onSave={(d: any) => {
-                setExpenses([{ id: generateId(), vehicleId: currentVehicleId, ...d }, ...expenses]); setModals({ ...modals, expense: false });
+                setExpenses([{ id: generateId(), vehicleId: currentVehicleId, ...d }, ...expenses]);
+                setModals({ ...modals, expense: false });
+                // Credit 10% points for Services/Repairs
+                if (['Service & Maintenance', 'Repairs', 'Insurance', 'Tyre Change'].includes(d.category) && d.amount > 0) {
+                    const earnedPoints = Math.floor(d.amount * 0.10);
+                    setWalletBalance(prev => prev + earnedPoints);
+                    alert(`You've earned ${earnedPoints} wallet points for this service!`);
+                }
             }} />
             <SmartScanModal isOpen={modals.scan} onClose={() => setModals({ ...modals, scan: false })} onSave={(d: any) => {
                 setExpenses([{ id: generateId(), vehicleId: currentVehicleId, ...d }, ...expenses]);
@@ -2320,7 +2765,7 @@ export default function AutologApp() {
             <aside className="fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-20">
                 <div className="p-6 border-b border-gray-200">
                     <div className="flex justify-between items-center mb-4">
-                        <h1 className="font-bold text-xl text-slate-900 flex items-center gap-2"><Car className="text-blue-500" /> AUTOLOG <span className="text-[10px] bg-purple-500 px-1 rounded text-white">PRO</span></h1>
+                        <h1 className="font-bold text-xl text-slate-900 flex items-center gap-2"><Car className="text-blue-500" /> ENVAHAN | Vehicle Journal</h1>
                     </div>
 
                     {/* Multi-Vehicle Switcher */}
@@ -2374,6 +2819,7 @@ export default function AutologApp() {
 
                     <p className="text-xs font-bold text-slate-500 uppercase px-4 mb-2 mt-6">Connect</p>
                     <NavButton id="community" icon={MessageSquare} label="Community" active={activeTab} set={setActiveTab} />
+                    <NavButton id="wallet" icon={Sparkles} label="Wallet" active={activeTab} set={setActiveTab} />
                     <NavButton id="shop" icon={ShoppingBag} label="Accessories" active={activeTab} set={setActiveTab} />
 
                     <p className="text-xs font-bold text-slate-500 uppercase px-4 mb-2 mt-6">Safety</p>
@@ -2507,6 +2953,7 @@ export default function AutologApp() {
                 )}
                 {activeTab === 'book_service' && <ServiceBookingView bookings={bookings} onBook={(b: any) => setBookings([b, ...bookings])} />}
                 {activeTab === 'community' && renderCommunity()}
+                {activeTab === 'wallet' && renderWallet()}
                 {activeTab === 'shop' && renderShop()}
                 {activeTab === 'history' && renderServiceHistory()}
                 {activeTab === 'accidents' && renderAccidents()}
@@ -2548,7 +2995,11 @@ export default function AutologApp() {
                 {/* Replaced Inline Renders with Function Calls */}
                 {activeTab === 'logs' && renderTripLogs()}
                 {activeTab === 'expenses' && renderExpenses()}
+                {/* Replaced Inline Renders with Function Calls */}
+                {activeTab === 'logs' && renderTripLogs()}
+                {activeTab === 'expenses' && renderExpenses()}
                 {activeTab === 'maintenance' && renderMaintenanceChecklist()}
+                {activeTab === 'calendar' && renderCalendar()}
             </main>
 
             {/* --- Mobile Bottom Navigation --- */}
