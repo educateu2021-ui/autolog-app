@@ -1274,6 +1274,11 @@ export default function AutologApp() {
     const [chartPeriod, setChartPeriod] = useState<'week' | 'month' | 'year'>('month');
     const [showWalkthrough, setShowWalkthrough] = useState(false);
 
+    // View States for Combined Tabs
+    const [logViewMode, setLogViewMode] = useState<'trips' | 'expenses'>('trips');
+    const [maintViewMode, setMaintViewMode] = useState<'checklist' | 'history'>('checklist');
+    const [commViewMode, setCommViewMode] = useState<'discuss' | 'shop'>('shop');
+
     // Initial Walkthrough Check
     useEffect(() => {
         const hasSeenWalkthrough = localStorage.getItem('autolog_walkthrough_seen');
@@ -1634,6 +1639,93 @@ export default function AutologApp() {
 
     );
 
+
+
+
+    // Reusable Render Functions
+    const renderTripLogs = () => (
+        <div className="animate-in fade-in space-y-4 pb-20 md:pb-0">
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl md:text-2xl font-bold text-slate-900">Trip Logs</h2>
+                <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => downloadCSV(currentTrips, 'trip_logs')} className="px-3"><Download size={16} /> <span className="hidden md:inline">Export</span></Button>
+                    <Button onClick={() => setModals({ ...modals, trip: true })} className="px-3"><Plus size={16} /> <span className="hidden md:inline">Log</span></Button>
+                </div>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-gray-100 text-slate-500 font-bold uppercase text-xs">
+                        <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Odometer</th><th className="px-4 py-3 text-right">Distance</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                        {currentTrips.map((t: any) => (
+                            <tr key={t.id}><td className="px-4 py-3">{t.date}</td><td className="px-4 py-3">{t.type}</td><td className="px-4 py-3 font-mono">{t.startOdometer}-{t.endOdometer}</td><td className="px-4 py-3 text-right text-slate-900 font-bold">{t.distance} km</td></tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
+    const renderExpenses = () => (
+        <div className="animate-in fade-in space-y-4 pb-20 md:pb-0">
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl md:text-2xl font-bold text-slate-900">Expenses</h2>
+                <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => downloadCSV(currentExpenses, 'expenses')} className="px-3"><Download size={16} /> <span className="hidden md:inline">Export</span></Button>
+                    <Button onClick={() => setModals({ ...modals, scan: true })} className="px-3"><Camera size={16} /> <span className="hidden md:inline">Scan</span></Button>
+                    <Button onClick={() => setModals({ ...modals, expense: true })} className="px-3"><Plus size={16} /> <span className="hidden md:inline">Add</span></Button>
+                </div>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-gray-100 text-slate-500 font-bold uppercase text-xs">
+                        <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Vendor</th><th className="px-4 py-3 text-right">Amount</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                        {currentExpenses.map((e: any) => (
+                            <tr key={e.id}><td className="px-4 py-3">{e.date}</td><td className="px-4 py-3">{e.category}</td><td className="px-4 py-3">{e.vendor}</td><td className="px-4 py-3 text-right text-emerald-600 font-bold">₹{e.amount}</td></tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
+    const renderMaintenanceChecklist = () => (
+        <div className="animate-in fade-in space-y-6 pb-20 md:pb-0">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-900">Maintenance Checklist</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {['Daily', 'Monthly', 'Yearly'].map(freq => (
+                    <Card key={freq} className="p-0 border-t-4 border-t-blue-500 h-fit">
+                        <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-900">{freq} Checks</h3>
+                            <span className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-gray-200">{tasks.filter((t: any) => MAINTENANCE_TASKS.find(def => def.id === t.id)?.frequency === freq && t.status === 'ok').length} / {MAINTENANCE_TASKS.filter(def => def.frequency === freq).length}</span>
+                        </div>
+                        <div className="divide-y divide-gray-200">
+                            {MAINTENANCE_TASKS.filter(def => def.frequency === freq).map(def => {
+                                const state = tasks.find((t: any) => t.id === def.id);
+                                return (
+                                    <div key={def.id} className={cn("p-3 flex items-center justify-between", state?.status === 'issue' ? 'bg-red-50' : 'hover:bg-gray-50')}>
+                                        <div>
+                                            <p className={cn("text-sm", state?.status === 'ok' ? 'text-slate-400 line-through' : state?.status === 'issue' ? 'text-red-600 font-bold' : 'text-slate-700')}>{def.label}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase">{def.category}</p>
+                                            {state?.status === 'issue' && <p className="text-xs text-red-500 mt-1">Issue: {state.issueDetails}</p>}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button title="Mark OK" onClick={() => setTasks((tasks: any) => tasks.map((t: any) => t.id === def.id ? { ...t, status: t.status === 'ok' ? 'pending' : 'ok', lastChecked: new Date().toISOString().split('T')[0] } : t))} className={cn("p-1 rounded border", state?.status === 'ok' ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-300 text-slate-400')}><CheckCircle size={16} /></button>
+                                            <button title="Report Issue" onClick={() => setIssueTarget({ id: def.id, name: def.label })} className={cn("p-1 rounded border", state?.status === 'issue' ? 'bg-red-600 border-red-500 text-white' : 'border-gray-300 text-slate-400')}><AlertOctagon size={16} /></button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </Card>
+                ))}
+            </div>
+        </div>
+    );
+
     const renderDashboard = () => {
         const recentActivities = [
             ...currentTrips.map(t => ({ ...t, type: 'trip', sortDate: t.date })),
@@ -1660,7 +1752,10 @@ export default function AutologApp() {
                 <div className="flex justify-between items-end mb-2">
                     <div>
                         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Welcome, {user.name.split(' ')[0]}!</h2>
-                        <p className="text-sm text-slate-500 font-medium">Here's what's happening with your garage today.</p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-sm text-slate-500 font-medium">Here's what's happening with your garage today.</p>
+                            <button onClick={() => setActiveTab('rsa')} className="bg-red-50 text-red-600 p-1 rounded-full border border-red-100 hover:bg-red-100"><PhoneCall size={12} /></button>
+                        </div>
                     </div>
                 </div>
 
@@ -2419,109 +2514,50 @@ export default function AutologApp() {
                 {activeTab === 'rsa' && renderRSA()}
                 {activeTab === 'docs' && renderDocuments()}
 
-                {activeTab === 'logs' && (
+                {/* Combined Views for Mobile/Tablet */}
+                {activeTab === 'combined_logs' && (
                     <div className="animate-in fade-in space-y-4 pb-20 md:pb-0">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-2xl font-bold text-slate-900">Trip Logs</h2>
-                            <div className="flex gap-2">
-                                <Button variant="secondary" onClick={() => downloadCSV(currentTrips, 'trip_logs')} className="px-3"><Download size={16} /> <span className="hidden md:inline">Export</span></Button>
-                                <Button onClick={() => setModals({ ...modals, trip: true })} className="px-3"><Plus size={16} /> <span className="hidden md:inline">Log Trip</span></Button>
-                            </div>
+                        <div className="flex justify-center p-1 bg-gray-100 rounded-lg mx-auto max-w-sm mb-4">
+                            <button onClick={() => setLogViewMode('trips')} className={cn("flex-1 py-1.5 px-3 rounded-md text-sm font-bold transition-all", logViewMode === 'trips' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Trips</button>
+                            <button onClick={() => setLogViewMode('expenses')} className={cn("flex-1 py-1.5 px-3 rounded-md text-sm font-bold transition-all", logViewMode === 'expenses' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Expenses</button>
                         </div>
-                        <div className="overflow-x-auto rounded-xl border border-gray-200">
-                            <table className="w-full text-left text-sm text-slate-600">
-                                <thead className="bg-gray-100 text-slate-500 font-bold uppercase text-xs">
-                                    <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Odometer</th><th className="px-4 py-3 text-right">Distance</th></tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200 bg-white">
-                                    {currentTrips.map(t => (
-                                        <tr key={t.id}><td className="px-4 py-3">{t.date}</td><td className="px-4 py-3">{t.type}</td><td className="px-4 py-3 font-mono">{t.startOdometer}-{t.endOdometer}</td><td className="px-4 py-3 text-right text-slate-900 font-bold">{t.distance} km</td></tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        {logViewMode === 'trips' ? renderTripLogs() : renderExpenses()}
                     </div>
                 )}
 
-                {activeTab === 'expenses' && (
+                {activeTab === 'combined_maintenance' && (
                     <div className="animate-in fade-in space-y-4 pb-20 md:pb-0">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-2xl font-bold text-slate-900">Expenses</h2>
-                            <div className="flex gap-2">
-                                <Button variant="secondary" onClick={() => downloadCSV(currentExpenses, 'expenses')} className="px-3"><Download size={16} /> <span className="hidden md:inline">Export</span></Button>
-                                <Button onClick={() => setModals({ ...modals, scan: true })} className="px-3"><Camera size={16} /> <span className="hidden md:inline">Scan</span></Button>
-                                <Button onClick={() => setModals({ ...modals, expense: true })} className="px-3"><Plus size={16} /> <span className="hidden md:inline">Add</span></Button>
-                            </div>
+                        <div className="flex justify-center p-1 bg-gray-100 rounded-lg mx-auto max-w-sm mb-4">
+                            <button onClick={() => setMaintViewMode('checklist')} className={cn("flex-1 py-1.5 px-3 rounded-md text-sm font-bold transition-all", maintViewMode === 'checklist' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Checklist</button>
+                            <button onClick={() => setMaintViewMode('history')} className={cn("flex-1 py-1.5 px-3 rounded-md text-sm font-bold transition-all", maintViewMode === 'history' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>History</button>
                         </div>
-                        <div className="overflow-x-auto rounded-xl border border-gray-200">
-                            <table className="w-full text-left text-sm text-slate-600">
-                                <thead className="bg-gray-100 text-slate-500 font-bold uppercase text-xs">
-                                    <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Vendor</th><th className="px-4 py-3 text-right">Amount</th></tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200 bg-white">
-                                    {currentExpenses.map(e => (
-                                        <tr key={e.id}><td className="px-4 py-3">{e.date}</td><td className="px-4 py-3">{e.category}</td><td className="px-4 py-3">{e.vendor}</td><td className="px-4 py-3 text-right text-emerald-600 font-bold">₹{e.amount}</td></tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        {maintViewMode === 'checklist' ? renderMaintenanceChecklist() : renderServiceHistory()}
                     </div>
                 )}
 
-                {activeTab === 'warnings' && (
-                    <div className="animate-in fade-in space-y-6 pb-20 md:pb-0">
-                        <div className="mb-6">
-                            <h2 className="text-2xl font-bold text-slate-900 mb-2">Dashboard Warning Lights</h2>
-                            <p className="text-slate-500 text-sm">Quick reference guide for dashboard symbols.</p>
+                {activeTab === 'combined_community' && (
+                    <div className="animate-in fade-in space-y-4 pb-20 md:pb-0">
+                        <div className="flex justify-center p-1 bg-gray-100 rounded-lg mx-auto max-w-sm mb-4">
+                            <button onClick={() => setCommViewMode('shop')} className={cn("flex-1 py-1.5 px-3 rounded-md text-sm font-bold transition-all", commViewMode === 'shop' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Shop</button>
+                            <button onClick={() => setCommViewMode('discuss')} className={cn("flex-1 py-1.5 px-3 rounded-md text-sm font-bold transition-all", commViewMode === 'discuss' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Discuss</button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {WARNING_LIGHTS_DATA.map(light => <WarningLightCard key={light.id} light={light} />)}
-                        </div>
+                        {commViewMode === 'shop' ? renderShop() : renderCommunity()}
                     </div>
                 )}
 
-                {activeTab === 'maintenance' && (
-                    <div className="animate-in fade-in space-y-6 pb-20 md:pb-0">
-                        <h2 className="text-2xl font-bold text-slate-900">Maintenance Checklist</h2>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {['Daily', 'Monthly', 'Yearly'].map(freq => (
-                                <Card key={freq} className="p-0 border-t-4 border-t-blue-500 h-fit">
-                                    <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                                        <h3 className="font-bold text-slate-900">{freq} Checks</h3>
-                                        <span className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-gray-200">{tasks.filter(t => MAINTENANCE_TASKS.find(def => def.id === t.id)?.frequency === freq && t.status === 'ok').length} / {MAINTENANCE_TASKS.filter(def => def.frequency === freq).length}</span>
-                                    </div>
-                                    <div className="divide-y divide-gray-200">
-                                        {MAINTENANCE_TASKS.filter(def => def.frequency === freq).map(def => {
-                                            const state = tasks.find(t => t.id === def.id);
-                                            return (
-                                                <div key={def.id} className={cn("p-3 flex items-center justify-between", state?.status === 'issue' ? 'bg-red-50' : 'hover:bg-gray-50')}>
-                                                    <div>
-                                                        <p className={cn("text-sm", state?.status === 'ok' ? 'text-slate-400 line-through' : state?.status === 'issue' ? 'text-red-600 font-bold' : 'text-slate-700')}>{def.label}</p>
-                                                        <p className="text-[10px] text-slate-500 uppercase">{def.category}</p>
-                                                        {state?.status === 'issue' && <p className="text-xs text-red-500 mt-1">Issue: {state.issueDetails}</p>}
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button title="Mark OK" onClick={() => setTasks(tasks.map(t => t.id === def.id ? { ...t, status: t.status === 'ok' ? 'pending' : 'ok', lastChecked: new Date().toISOString().split('T')[0] } : t))} className={cn("p-1 rounded border", state?.status === 'ok' ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-300 text-slate-400')}><CheckCircle size={16} /></button>
-                                                        <button title="Report Issue" onClick={() => setIssueTarget({ id: def.id, name: def.label })} className={cn("p-1 rounded border", state?.status === 'issue' ? 'bg-red-600 border-red-500 text-white' : 'border-gray-300 text-slate-400')}><AlertOctagon size={16} /></button>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </Card>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Replaced Inline Renders with Function Calls */}
+                {activeTab === 'logs' && renderTripLogs()}
+                {activeTab === 'expenses' && renderExpenses()}
+                {activeTab === 'maintenance' && renderMaintenanceChecklist()}
             </main>
 
             {/* --- Mobile Bottom Navigation --- */}
             <div className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 flex justify-between px-6 py-2 z-40 shadow-xl shadow-black/10">
                 <MobileNavBtn id="dashboard" icon={LayoutDashboard} label="Home" active={activeTab} set={setActiveTab} />
                 <MobileNavBtn id="manage_garage" icon={Warehouse} label="Garage" active={activeTab} set={setActiveTab} />
-                <MobileNavBtn id="logs" icon={FileText} label="Logs" active={activeTab} set={setActiveTab} />
-                <MobileNavBtn id="expenses" icon={DollarSign} label="Costs" active={activeTab} set={setActiveTab} />
-                <MobileNavBtn id="rsa" icon={PhoneCall} label="RSA" active={activeTab} set={setActiveTab} />
+                <MobileNavBtn id="combined_logs" icon={FileText} label="Logs" active={activeTab} set={setActiveTab} />
+                <MobileNavBtn id="combined_maintenance" icon={Wrench} label="Service" active={activeTab} set={setActiveTab} />
+                <MobileNavBtn id="combined_community" icon={MessageSquare} label="Community" active={activeTab} set={setActiveTab} />
             </div>
         </div>
     );
